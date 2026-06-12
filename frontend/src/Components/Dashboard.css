@@ -1,0 +1,205 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* MAIN GRID LAYOUT */
+.Dashboard {
+  height: 100vh;
+  display: grid;
+
+  grid-template-areas:
+    "north north"
+    "west center"
+    "south south";
+
+  grid-template-columns: 250px 1fr;
+  grid-template-rows: 60px 1fr 40px;
+}
+
+/* HEADER */
+.north {
+  grid-area: north;
+  background: #1976d2;
+  color: white;
+  padding: 15px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* SIDEBAR */
+.west {
+  grid-area: west;
+  background: #f4f4f4;
+  padding: 15px;
+  border-right: 1px solid #ccc;
+}
+
+/* MAIN CONTENT */
+.center {
+  grid-area: center;
+  padding: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* FOOTER */
+.south {
+  grid-area: south;
+  background: #e0e0e0;
+  padding: 10px;
+}
+
+/* NAVIGATION */
+ul {
+  margin-top: 10px;
+}
+
+li {
+  list-style: none;
+  padding: 8px;
+  cursor: pointer;
+}
+
+li:hover {
+  background: #ddd;
+}
+
+/* GRID WRAPPER */
+.grid-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* TOOLBAR */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.toolbar button {
+  padding: 8px 14px;
+  border: none;
+  background: #1976d2;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toolbar button:hover {
+  background: #125aa0;
+}
+
+/* TABLES */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+table,
+th,
+td {
+  border: 1px solid #ccc;
+}
+
+th,
+td {
+  padding: 10px;
+  text-align: left;
+}
+
+/* PAGINATION */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.pagination button {
+  padding: 6px 12px;
+  border: none;
+  background: #1976d2;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.pagination button:disabled {
+  background: #999;
+}
+
+.pagination span {
+  font-weight: bold;
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  background: rgba(0, 0, 0, 0.5);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 450px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-row label {
+  width: 130px;
+  font-weight: bold;
+}
+
+.form-row input {
+  flex: 1;
+  padding: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
