@@ -1,0 +1,139 @@
+# =========================
+# OS FILES
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# LOG FILES
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# ENVIRONMENT VARIABLES
+# =========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# =========================
+# PYTHON
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Python Build
+build/
+dist/
+*.egg-info/
+
+# Pytest
+.pytest_cache/
+
+# Mypy
+.mypy_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# =========================
+# FASTAPI / DATABASE
+# =========================
+*.sqlite3
+*.db
+instance/
+
+# =========================
+# NODE / REACT
+# =========================
+node_modules/
+
+# Build folders
+build/
+dist/
+
+# Vite
+.vite/
+
+# React cache
+.eslintcache
+
+# =========================
+# IDES
+# =========================
+
+# VS Code
+.vscode/
+
+# IntelliJ / PyCharm
+.idea/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# =========================
+# TEMP FILES
+# =========================
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# =========================
+# PACKAGE LOCKS (OPTIONAL)
+# Keep these if you want reproducible builds
+# =========================
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# =========================
+# UPLOADS / GENERATED FILES
+# =========================
+uploads/
+generated/
+exports/
+reports/
+
+# =========================
+# KENDO LICENSE FILES
+# =========================
+kendo-ui-license.txt
+telerik-license.txt
+
+# =========================
+# SECRETS
+# =========================
+secrets.json
+credentials.json
+config.local.json
+
+# =========================
+# MYSQL DUMPS
+# =========================
+*.sql
+*.bak
+*.dump
+
+# =========================
+# ZIP FILES
+# =========================
+*.zip
+*.rar
+*.7z
