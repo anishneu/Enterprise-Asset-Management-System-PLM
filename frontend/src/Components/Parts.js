@@ -16,6 +16,8 @@ function Parts() {
     take: 10,
   });
 
+  const [activeTab, setActiveTab] = useState("summary");
+
   const [selectedParts, setSelectedParts] = useState([]);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -188,6 +190,29 @@ function Parts() {
   return (
     <div className="grid-wrapper">
       <h3>Parts</h3>
+
+      {/* ================= TABS ================= */}
+      <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+        <button
+          onClick={() => setActiveTab("summary")}
+          style={{
+            background: activeTab === "summary" ? "#1976d2" : "#eee",
+            color: activeTab === "summary" ? "white" : "black",
+          }}
+        >
+          Summary
+        </button>
+
+        <button
+          onClick={() => setActiveTab("details")}
+          style={{
+            background: activeTab === "details" ? "#1976d2" : "#eee",
+            color: activeTab === "details" ? "white" : "black",
+          }}
+        >
+          Details
+        </button>
+      </div>
 
       {/* TOOLBAR */}
       <div
