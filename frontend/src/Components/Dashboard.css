@@ -203,3 +203,46 @@ td {
   height: 32px;
   object-fit: contain;
 }
+
+.menu-parent {
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+
+.submenu {
+  margin-left: 15px;
+  margin-top: 5px;
+}
+
+.submenu li {
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.submenu li:hover {
+  background: #ddd;
+}
+
+.sidebar-toggle {
+  margin-right: 10px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.west {
+  width: 250px;
+  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
+.west.collapsed {
+  width: 60px;
+  padding: 10px 5px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
