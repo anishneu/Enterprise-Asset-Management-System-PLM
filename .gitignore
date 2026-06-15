@@ -127,7 +127,7 @@ config.local.json
 # =========================
 # MYSQL DUMPS
 # =========================
-*.sql
+# *.sql
 *.bak
 *.dump
 
