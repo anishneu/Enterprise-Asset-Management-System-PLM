@@ -246,3 +246,50 @@ td {
   align-items: center;
   gap: 10px;
 }
+
+.fb-layout {
+  display: flex;
+  height: 100%;
+}
+
+/* LEFT */
+.fb-left {
+  width: 220px;
+  border-right: 1px solid #ddd;
+  padding: 10px;
+}
+
+.fb-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #f5f5f5;
+}
+
+/* CENTER */
+.fb-center {
+  flex: 1;
+  padding: 20px;
+}
+
+.fb-canvas {
+  min-height: 300px;
+  border: 2px dashed #ccc;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+/* RIGHT */
+.fb-right {
+  width: 250px;
+  border-left: 1px solid #ddd;
+  padding: 10px;
+}
+
+.fb-form-card {
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #f7f7f7;
+  border-radius: 6px;
+}
