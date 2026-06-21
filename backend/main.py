@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes.auth import router as auth_router
 from routes.parts import router as parts_router
 from routes.users import router as users_router
 from routes.docs import router as docs_router
 from routes.form import router as form_router
 
 app = FastAPI()
+
+print("🚀 Starting FastAPI...")
 
 @app.get("/")
 def home():
@@ -21,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
+# ONLY ROUTERS (IMPORTANT)
 app.include_router(parts_router)
 app.include_router(users_router)
 app.include_router(docs_router)

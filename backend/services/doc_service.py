@@ -9,7 +9,6 @@ class DocService:
 
         cursor.execute("SELECT * FROM doctab;")
         docs = cursor.fetchall()
-        print(docs)
 
         conn.close()
         return docs
@@ -36,5 +35,40 @@ class DocService:
         conn.close()
 
         return {"message": "Document added successfully"}
-       
+
+    @staticmethod
+    def update_doc(doc_id, doc):
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        sql = """
+        UPDATE doctab
+        SET dname=%s, ddesc=%s, doctype=%s, fmat=%s
+        WHERE id=%s
+        """
+
+        cursor.execute(sql, (
+            doc["dname"],
+            doc["ddesc"],
+            doc["doctype"],
+            doc["fmat"],
+            doc_id,
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return {"message": "Document updated successfully"}
+
+    @staticmethod
+    def delete_doc(doc_id):
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM doctab WHERE id=%s", (doc_id,))
+
+        conn.commit()
+        conn.close()
+
+        return {"message": "Document deleted successfully"}
        

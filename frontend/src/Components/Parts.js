@@ -1,141 +1,177 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
-import { Grid, GridColumn } from "@progress/kendo-react-grid";
-import { process } from "@progress/kendo-data-query";
+import AppDataGrid from "./common/AppDataGrid";
+import { createEditColumn, multiRowSelection } from "./common/gridHelpers";
+import { filterBySearch } from "../utils/filterBySearch";
 
 import jsPDF from "jspdf";
 
-function Parts() {
+const API_BASE = "http://127.0.0.1:8000/api/parts";
+
+const emptyPart = {
+  id: null,
+  partno: "",
+  pdesc: "",
+  prev: "",
+};
+
+function Parts({ searchText = "" }) {
   const [parts, setParts] = useState([]);
-
-  const [dataState, setDataState] = useState({
-    sort: [],
-    filter: null,
-    skip: 0,
-    take: 10,
-  });
-
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("summary");
-
-  const [selectedParts, setSelectedParts] = useState([]);
-
-  const [showAddModal, setShowAddModal] = useState(false);
-
-  const [newPart, setNewPart] = useState({
-    id: null,
-    partno: "",
-    pdesc: "",
-    prev: "",
-  });
-
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [formPart, setFormPart] = useState(emptyPart);
   const [exportType, setExportType] = useState("csv");
+  const gridApiRef = useRef(null);
+
+  const clearSelection = useCallback(() => {
+    gridApiRef.current?.deselectAll();
+    setSelectedIds([]);
+  }, []);
+
+  const filteredParts = useMemo(
+    () => filterBySearch(parts, searchText, ["partno", "pdesc", "prev", "updated"]),
+    [parts, searchText]
+  );
+
+  const rowSelection = useMemo(() => multiRowSelection, []);
 
   useEffect(() => {
     fetchParts();
   }, []);
 
   const fetchParts = async () => {
+    setLoading(true);
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/parts");
+      const res = await axios.get(`${API_BASE}/`);
       setParts(res.data);
     } catch (err) {
       console.error(err);
+      alert("Failed to load parts.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ================= SELECTION =================
-  const toggleSelect = (id) => {
-    setSelectedParts((prev) =>
-      prev.includes(id)
-        ? prev.filter((x) => x !== id)
-        : [...prev, id]
-    );
-  };
+  const getPartId = (part) => Number(part.id);
 
-  // ================= ADD / EDIT =================
   const openAddModal = () => {
-    setNewPart({
-      id: null,
-      partno: "",
-      pdesc: "",
-      prev: "",
+    setFormPart(emptyPart);
+    setShowModal(true);
+  };
+
+  const openEditModal = useCallback((part) => {
+    setFormPart({
+      id: getPartId(part),
+      partno: part.partno || "",
+      pdesc: part.pdesc || "",
+      prev: part.prev || "",
     });
-    setShowAddModal(true);
+    setShowModal(true);
+  }, []);
+
+  const closeModal = () => {
+    setShowModal(false);
+    setFormPart(emptyPart);
   };
 
-  const openEdit = () => {
-    if (selectedParts.length !== 1) {
-      alert("Select exactly one row to edit");
-      return;
-    }
-
-    const row = parts.find((p) => p.id === selectedParts[0]);
-    setNewPart(row);
-    setShowAddModal(true);
-  };
-
-  const closeAddModal = () => setShowAddModal(false);
-
-  const handleNewChange = (field, value) => {
-    setNewPart((prev) => ({ ...prev, [field]: value }));
+  const handleFormChange = (field, value) => {
+    setFormPart((prev) => ({ ...prev, [field]: value }));
   };
 
   const savePart = async () => {
-    try {
-      if (newPart.id) {
-        await axios.put(
-          `http://127.0.0.1:8000/api/parts/${newPart.id}`,
-          newPart
-        );
-      } else {
-        await axios.post("http://127.0.0.1:8000/api/parts", {
-          partno: newPart.partno,
-          pdesc: newPart.pdesc,
-          prev: newPart.prev,
-        });
-      }
-
-      fetchParts();
-      setShowAddModal(false);
-      setSelectedParts([]);
-    } catch (err) {
-      alert("Save failed");
-    }
-  };
-
-  // ================= DELETE =================
-  const deleteSelected = async () => {
-    if (selectedParts.length === 0) {
-      alert("Select rows first");
+    if (!formPart.partno.trim()) {
+      alert("Part number is required.");
       return;
     }
 
-    if (!window.confirm("Delete selected parts?")) return;
+    const payload = {
+      partno: formPart.partno.trim(),
+      pdesc: formPart.pdesc.trim(),
+      prev: formPart.prev.trim(),
+    };
 
+    setSaving(true);
     try {
-      for (const id of selectedParts) {
-        await axios.delete(`http://127.0.0.1:8000/api/parts/${id}`);
+      if (formPart.id) {
+        await axios.put(`${API_BASE}/${formPart.id}`, payload);
+      } else {
+        await axios.post(`${API_BASE}/`, payload);
       }
 
-      fetchParts();
-      setSelectedParts([]);
+      await fetchParts();
+      closeModal();
+      clearSelection();
     } catch (err) {
-      alert("Delete failed");
+      console.error(err);
+      alert(err.response?.data?.detail || "Save failed.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ================= EXPORT FUNCTIONS =================
+  const deleteSelected = async () => {
+    if (selectedIds.length === 0) {
+      alert("Select at least one part to delete.");
+      return;
+    }
+
+    if (!window.confirm(`Delete ${selectedIds.length} selected part(s)?`)) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        selectedIds.map((id) => axios.delete(`${API_BASE}/${id}`))
+      );
+      clearSelection();
+      await fetchParts();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.detail || "Delete failed.");
+    }
+  };
+
+  const handleGridReady = useCallback((event) => {
+    gridApiRef.current = event.api;
+  }, []);
+
+  const handleSelectionChanged = useCallback((event) => {
+    const ids = event.api.getSelectedRows().map((row) => Number(row.id));
+    setSelectedIds(ids);
+  }, []);
+
+  const gridContext = useMemo(
+    () => ({
+      onEdit: openEditModal,
+    }),
+    [openEditModal]
+  );
+
+  const columnDefs = useMemo(
+    () => [
+      createEditColumn(),
+      { field: "partno", headerName: "Part Number" },
+      { field: "pdesc", headerName: "Description" },
+      { field: "prev", headerName: "Revision", maxWidth: 120 },
+      { field: "updated", headerName: "Updated Date", minWidth: 170 },
+    ],
+    []
+  );
+
   const exportCSV = () => {
     const headers = ["Part Number", "Description", "Revision", "Updated"];
-    const rows = parts.map((p) => [
+    const rows = filteredParts.map((p) => [
       p.partno,
       p.pdesc,
       p.prev,
       p.updated,
     ]);
 
-    let csvContent =
+    const csvContent =
       "data:text/csv;charset=utf-8," +
       [headers, ...rows].map((e) => e.join(",")).join("\n");
 
@@ -146,15 +182,11 @@ function Parts() {
   };
 
   const exportTXT = () => {
-    const text = parts
-      .map(
-        (p) =>
-          `${p.partno} | ${p.pdesc} | ${p.prev} | ${p.updated}`
-      )
+    const text = filteredParts
+      .map((p) => `${p.partno} | ${p.pdesc} | ${p.prev} | ${p.updated}`)
       .join("\n");
 
     const blob = new Blob([text], { type: "text/plain" });
-
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "parts.txt";
@@ -163,18 +195,13 @@ function Parts() {
 
   const exportPDF = () => {
     const doc = new jsPDF();
-
     let y = 10;
 
     doc.text("Parts List", 10, y);
     y += 10;
 
-    parts.forEach((p) => {
-      doc.text(
-        `${p.partno} | ${p.pdesc} | ${p.prev} | ${p.updated}`,
-        10,
-        y
-      );
+    filteredParts.forEach((p) => {
+      doc.text(`${p.partno} | ${p.pdesc} | ${p.prev} | ${p.updated}`, 10, y);
       y += 10;
     });
 
@@ -189,131 +216,148 @@ function Parts() {
 
   return (
     <div className="grid-wrapper">
-      <h3>Parts</h3>
-
-      {/* ================= TABS ================= */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+      <div className="parts-tabs">
         <button
+          type="button"
+          className={activeTab === "summary" ? "parts-tab active" : "parts-tab"}
           onClick={() => setActiveTab("summary")}
-          style={{
-            background: activeTab === "summary" ? "#1976d2" : "#eee",
-            color: activeTab === "summary" ? "white" : "black",
-          }}
         >
           Summary
         </button>
-
         <button
+          type="button"
+          className={activeTab === "details" ? "parts-tab active" : "parts-tab"}
           onClick={() => setActiveTab("details")}
-          style={{
-            background: activeTab === "details" ? "#1976d2" : "#eee",
-            color: activeTab === "details" ? "white" : "black",
-          }}
         >
           Details
         </button>
       </div>
 
-      {/* TOOLBAR */}
-      <div
-        className="export-bar"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: "15px",
-        }}
-      >
-        {/* LEFT SIDE ACTIONS */}
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={openAddModal}>Add</button>
-          <button onClick={openEdit}>Edit</button>
-          <button onClick={deleteSelected}>Delete</button>
+      <div className={`parts-tab-panel${activeTab === "summary" ? "" : " hidden"}`}>
+        <div className="parts-toolbar">
+          <div className="parts-toolbar-left">
+            <button type="button" className="parts-btn primary" onClick={openAddModal}>
+              Add
+            </button>
+            <button
+              type="button"
+              className="parts-btn danger"
+              onClick={deleteSelected}
+              disabled={selectedIds.length === 0}
+            >
+              Delete
+            </button>
+            {selectedIds.length > 0 && (
+              <span className="parts-selection-count">
+                {selectedIds.length} selected
+              </span>
+            )}
+          </div>
+
+          <div className="parts-toolbar-right">
+            <select
+              value={exportType}
+              onChange={(e) => setExportType(e.target.value)}
+            >
+              <option value="csv">CSV</option>
+              <option value="txt">TXT</option>
+              <option value="pdf">PDF</option>
+            </select>
+            <button type="button" className="parts-btn" onClick={handleExport}>
+              Export
+            </button>
+          </div>
         </div>
 
-        {/* RIGHT SIDE EXPORT */}
-        <div style={{ display: "flex", gap: "10px" }}>
-          <select
-            value={exportType}
-            onChange={(e) => setExportType(e.target.value)}
-          >
-            <option value="csv">CSV</option>
-            <option value="txt">TXT</option>
-            <option value="pdf">PDF</option>
-          </select>
+        <AppDataGrid
+          rowData={filteredParts}
+          columnDefs={columnDefs}
+          context={gridContext}
+          rowSelection={rowSelection}
+          onSelectionChanged={handleSelectionChanged}
+          onGridReady={handleGridReady}
+          loading={loading}
+          overlayNoRowsTemplate="<span>No parts found.</span>"
+        />
+      </div>
 
-          <button onClick={handleExport}>Export</button>
+      <div className={`parts-tab-panel${activeTab === "details" ? "" : " hidden"}`}>
+        <div className="parts-details">
+          {selectedIds.length === 0 ? (
+            <p>Select a part from the Summary tab to view details.</p>
+          ) : (
+            selectedIds.map((id) => {
+              const part = parts.find((p) => getPartId(p) === id);
+              if (!part) return null;
+              return (
+                <div key={id} className="part-detail-card">
+                  <div className="part-detail-header">
+                    <h4>{part.partno}</h4>
+                    <button
+                      type="button"
+                      className="grid-edit-icon-btn"
+                      title="Edit"
+                      aria-label="Edit part"
+                      onClick={() => openEditModal(part)}
+                    >
+                      <svg
+                        className="grid-edit-icon"
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fill="currentColor"
+                          d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <p>
+                    <strong>Description:</strong> {part.pdesc}
+                  </p>
+                  <p>
+                    <strong>Revision:</strong> {part.prev}
+                  </p>
+                  <p>
+                    <strong>Updated:</strong> {part.updated}
+                  </p>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
-      {/* GRID */}
-      <Grid
-        data={process(parts, dataState)}
-        {...dataState}
-        onDataStateChange={(e) => setDataState(e.dataState)}
-        sortable
-        filterable
-        pageable
-        style={{ height: "550px", width: "100%" }}
-      >
-        <GridColumn
-          title="Select"
-          width="80px"
-          cell={(props) => (
-            <td>
-              <input
-                type="checkbox"
-                checked={selectedParts.includes(
-                  props.dataItem.id
-                )}
-                onChange={() =>
-                  toggleSelect(props.dataItem.id)
-                }
-              />
-            </td>
-          )}
-        />
-
-        <GridColumn field="partno" title="Part Number" />
-        <GridColumn field="pdesc" title="Description" />
-        <GridColumn field="prev" title="Revision" />
-        <GridColumn field="updated" title="Updated Date" />
-      </Grid>
-
-      {/* MODAL */}
-      {showAddModal && (
+      {showModal && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3>{newPart.id ? "Edit Part" : "Add Part"}</h3>
+            <h3>{formPart.id ? "Edit Part" : "Add Part"}</h3>
 
             <input
               placeholder="Part Number"
-              value={newPart.partno}
-              onChange={(e) =>
-                handleNewChange("partno", e.target.value)
-              }
+              value={formPart.partno}
+              onChange={(e) => handleFormChange("partno", e.target.value)}
             />
 
             <input
               placeholder="Description"
-              value={newPart.pdesc}
-              onChange={(e) =>
-                handleNewChange("pdesc", e.target.value)
-              }
+              value={formPart.pdesc}
+              onChange={(e) => handleFormChange("pdesc", e.target.value)}
             />
 
             <input
               placeholder="Revision"
-              value={newPart.prev}
-              onChange={(e) =>
-                handleNewChange("prev", e.target.value)
-              }
+              value={formPart.prev}
+              onChange={(e) => handleFormChange("prev", e.target.value)}
             />
 
             <div className="modal-actions">
-              <button onClick={savePart}>
-                {newPart.id ? "Save" : "Add"}
+              <button type="button" className="parts-btn primary" onClick={savePart} disabled={saving}>
+                {saving ? "Saving..." : formPart.id ? "Save" : "Add"}
               </button>
-              <button onClick={closeAddModal}>
+              <button type="button" className="parts-btn" onClick={closeModal} disabled={saving}>
                 Cancel
               </button>
             </div>
@@ -325,5 +369,3 @@ function Parts() {
 }
 
 export default Parts;
-
-

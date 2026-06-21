@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useEffect, useState, useMemo } from "react";
+import apiClient from "../api/client";
+import { filterBySearch } from "../utils/filterBySearch";
 
 import {
   DndContext,
@@ -8,7 +9,9 @@ import {
   closestCenter,
 } from "@dnd-kit/core";
 
-function Forms() {
+import "./Forms.css";
+
+function Forms({ searchText = "" }) {
 
   const [formsOpen, setFormsOpen] = useState([]);
   const [formName, setFormName] = useState("");
@@ -19,6 +22,10 @@ function Forms() {
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const selectedField = fields.find((f) => f.id === selectedFieldId);
 
+  const filteredSavedForms = useMemo(
+    () => filterBySearch(formsOpen, searchText, ["fmname", "dtype", "updated"]),
+    [formsOpen, searchText]
+  );
 
   useEffect(() => {
     fetchForms();
@@ -26,9 +33,7 @@ function Forms() {
 
   const fetchForms = async () => {
     try {
-      const res = await axios.get(
-        "http://127.0.0.1:8000/api/forms/"
-      );
+      const res = await apiClient.get("/forms/");
 
       setFormsOpen(res.data);
 
@@ -145,58 +150,11 @@ function Forms() {
     );
   };
 
-  <div className="fb-property-panel">
-    <h3>Field Properties</h3>
-
-    {!selectedField ? (
-      <p>Select a field</p>
-    ) : (
-      <>
-        <input
-          value={selectedField.label}
-          onChange={(e) =>
-            setFields((prev) =>
-              prev.map((f) =>
-                f.id === selectedField.id ? { ...f, label: e.target.value } : f,
-              ),
-            )
-          }
-          placeholder="Label"
-        />
-
-        <input
-          value={selectedField.placeholder || ""}
-          onChange={(e) =>
-            setFields((prev) =>
-              prev.map((f) =>
-                f.id === selectedField.id
-                  ? { ...f, placeholder: e.target.value }
-                  : f,
-              ),
-            )
-          }
-          placeholder="Placeholder"
-        />
-
-        <label>
-          <input
-            type="checkbox"
-            checked={selectedField.required || false}
-            onChange={(e) =>
-              setFields((prev) =>
-                prev.map((f) =>
-                  f.id === selectedField.id
-                    ? { ...f, required: e.target.checked }
-                    : f,
-                ),
-              )
-            }
-          />
-          Required
-        </label>
-      </>
-    )}
-  </div>;
+  const updateField = (id, updates) => {
+    setFields((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, ...updates } : f)),
+    );
+  };
 
   const saveForm = async () => {
     try {
@@ -210,10 +168,7 @@ function Forms() {
         })
       };
 
-      await axios.post(
-        "http://127.0.0.1:8000/api/forms/",
-        formData
-      );
+      await apiClient.post("/forms/", formData);
 
       fetchForms();
 
@@ -372,6 +327,43 @@ function Forms() {
             </CanvasDropZone>
           </div>
 
+          <div className="fb-properties">
+            <h3>Field Properties</h3>
+
+            {!selectedField ? (
+              <p className="fb-hint">Select a field to edit its properties</p>
+            ) : (
+              <>
+                <input
+                  value={selectedField.label}
+                  onChange={(e) =>
+                    updateField(selectedField.id, { label: e.target.value })
+                  }
+                  placeholder="Label"
+                />
+
+                <input
+                  value={selectedField.placeholder || ""}
+                  onChange={(e) =>
+                    updateField(selectedField.id, { placeholder: e.target.value })
+                  }
+                  placeholder="Placeholder"
+                />
+
+                <label className="fb-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={selectedField.required || false}
+                    onChange={(e) =>
+                      updateField(selectedField.id, { required: e.target.checked })
+                    }
+                  />
+                  Required
+                </label>
+              </>
+            )}
+          </div>
+
           {/* RIGHT - SAVED FORMS */}
           <div className="fb-right">
             <h3>Saved Forms</h3>
@@ -392,7 +384,7 @@ function Forms() {
               </thead>
 
               <tbody>
-                {formsOpen.map((form) => (
+                {filteredSavedForms.map((form) => (
                   <tr key={form.id}>
                     <td>{form.fmname}</td>
                     <td>{form.dtype}</td>
