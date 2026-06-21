@@ -1,19 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-import { Grid, GridColumn } from "@progress/kendo-react-grid";
-import { process } from "@progress/kendo-data-query";
+import AppDataGrid from "./common/AppDataGrid";
+import { filterBySearch } from "../utils/filterBySearch";
 
-function Training() {
+function Training({ searchText = "" }) {
+  const [training, setTraining] = useState([]);
 
-  const [Training, setTraining] = useState([]);
+  const filteredTraining = useMemo(
+    () =>
+      filterBySearch(training, searchText, [
+        "name",
+        "email",
+        "username",
+        "updated",
+      ]),
+    [training, searchText]
+  );
 
-  const [TrainingState, setTrainingState] = useState({
-    sort: [],
-    filter: null,
-    skip: 0,
-    take: 10,
-  });
+  const columnDefs = useMemo(
+    () => [
+      { field: "username", headerName: "Username" },
+      { field: "email", headerName: "Email" },
+      { field: "updated", headerName: "Updated Date", minWidth: 170 },
+    ],
+    []
+  );
 
   useEffect(() => {
     fetchTraining();
@@ -21,54 +33,20 @@ function Training() {
 
   const fetchTraining = async () => {
     try {
-      const res = await axios.get(
-        "http://127.0.0.1:8000/api/users"
-      );
-
+      const res = await axios.get("http://127.0.0.1:8000/api/users");
       setTraining(res.data);
-    }
-    catch (err) {
+    } catch (err) {
       console.error(err);
     }
   };
 
   return (
     <div className="grid-wrapper">
-
-      <h3 style={{ marginBottom: "15px" }}>
-        Training
-      </h3>
-
-      <Grid
-        data={process(Training, TrainingState)}
-        {...TrainingState}
-        onDataStateChange={(e) =>
-          setTrainingState(e.dataState)
-        }
-        sortable
-        filterable
-        pageable
-        style={{
-          flex: 1,
-          width: "100%"
-        }}
-      >
-        <GridColumn
-          field="name"
-          title="Name"
-        />
-
-        <GridColumn
-          field="email"
-          title="Email"
-        />
-
-        <GridColumn
-          field="updated"
-          title="Updated Date"
-        />
-      </Grid>
-
+      <AppDataGrid
+        rowData={filteredTraining}
+        columnDefs={columnDefs}
+        overlayNoRowsTemplate="<span>No training records found.</span>"
+      />
     </div>
   );
 }

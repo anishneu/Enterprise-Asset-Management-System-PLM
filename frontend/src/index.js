@@ -1,21 +1,38 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './theme.css';
 import './index.css';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
+import './agGridSetup';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { BrowserRouter } from "react-router-dom";
 
-import "@progress/kendo-theme-default/dist/all.css";
+import keycloak from "./keycloak";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <BrowserRouter>
-    <App />
-  </BrowserRouter>
-);
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+keycloak.init({
+  onLoad: "login-required",
+  pkceMethod: "S256",
+}).then((authenticated) => {
+  console.log("Keycloak authenticated:", authenticated);
+
+  root.render(
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  );
+}).catch((err) => {
+  console.error("Keycloak init failed:", err);
+
+  root.render(
+    <div className="appbox">
+      <h2>Authentication Error</h2>
+      <p>Unable to connect to Keycloak. Please check that the server is running and try again.</p>
+    </div>
+  );
+});
+
 reportWebVitals();
-
