@@ -5,6 +5,7 @@ function SidebarItem({
   collapsed,
   onClick,
   className = "",
+  showIcon = true,
 }) {
   return (
     <li
@@ -13,9 +14,11 @@ function SidebarItem({
       data-tooltip={collapsed ? label : undefined}
     >
       <span className="sidebar-item-content">
-        <span className="sidebar-icon" aria-hidden="true">
-          {Icon ? <Icon /> : null}
-        </span>
+        {showIcon && (
+          <span className="sidebar-icon" aria-hidden="true">
+            {Icon ? <Icon /> : null}
+          </span>
+        )}
         {!collapsed && <span className="sidebar-label">{label}</span>}
       </span>
     </li>

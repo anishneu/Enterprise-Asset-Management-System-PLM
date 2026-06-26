@@ -3,7 +3,9 @@ import axios from "axios";
 
 import AppDataGrid from "./common/AppDataGrid";
 import { createEditColumn, multiRowSelection } from "./common/gridHelpers";
+import { usePageInsight } from "./dashboard/PageInsightContext";
 import { filterBySearch } from "../utils/filterBySearch";
+import { useAppFeedback } from "../context/AppFeedbackContext";
 
 import jsPDF from "jspdf";
 
@@ -26,6 +28,8 @@ function Parts({ searchText = "" }) {
   const [formPart, setFormPart] = useState(emptyPart);
   const [exportType, setExportType] = useState("csv");
   const gridApiRef = useRef(null);
+  const { setInsight } = usePageInsight();
+  const feedback = useAppFeedback();
 
   const clearSelection = useCallback(() => {
     gridApiRef.current?.deselectAll();
@@ -39,22 +43,32 @@ function Parts({ searchText = "" }) {
 
   const rowSelection = useMemo(() => multiRowSelection, []);
 
-  useEffect(() => {
-    fetchParts();
-  }, []);
-
-  const fetchParts = async () => {
+  const fetchParts = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/`);
       setParts(res.data);
     } catch (err) {
       console.error(err);
-      alert("Failed to load parts.");
+      feedback.error("Failed to load parts.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [feedback]);
+
+  useEffect(() => {
+    fetchParts();
+  }, [fetchParts]);
+
+  useEffect(() => {
+    setInsight({
+      recordCount: filteredParts.length,
+      selectedCount: selectedIds.length,
+      extra: {
+        Tab: activeTab === "summary" ? "Summary" : "Details",
+      },
+    });
+  }, [filteredParts.length, selectedIds.length, activeTab, setInsight]);
 
   const getPartId = (part) => Number(part.id);
 
@@ -84,7 +98,7 @@ function Parts({ searchText = "" }) {
 
   const savePart = async () => {
     if (!formPart.partno.trim()) {
-      alert("Part number is required.");
+      feedback.error("Part number is required.");
       return;
     }
 
@@ -107,7 +121,7 @@ function Parts({ searchText = "" }) {
       clearSelection();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.detail || "Save failed.");
+      feedback.error(err.response?.data?.detail || "Save failed.");
     } finally {
       setSaving(false);
     }
@@ -115,7 +129,7 @@ function Parts({ searchText = "" }) {
 
   const deleteSelected = async () => {
     if (selectedIds.length === 0) {
-      alert("Select at least one part to delete.");
+      feedback.error("Select at least one part to delete.");
       return;
     }
 
@@ -131,7 +145,7 @@ function Parts({ searchText = "" }) {
       await fetchParts();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.detail || "Delete failed.");
+      feedback.error(err.response?.data?.detail || "Delete failed.");
     }
   };
 
@@ -215,7 +229,7 @@ function Parts({ searchText = "" }) {
   };
 
   return (
-    <div className="grid-wrapper">
+    <div className="grid-page">
       <div className="parts-tabs">
         <button
           type="button"
@@ -234,41 +248,6 @@ function Parts({ searchText = "" }) {
       </div>
 
       <div className={`parts-tab-panel${activeTab === "summary" ? "" : " hidden"}`}>
-        <div className="parts-toolbar">
-          <div className="parts-toolbar-left">
-            <button type="button" className="parts-btn primary" onClick={openAddModal}>
-              Add
-            </button>
-            <button
-              type="button"
-              className="parts-btn danger"
-              onClick={deleteSelected}
-              disabled={selectedIds.length === 0}
-            >
-              Delete
-            </button>
-            {selectedIds.length > 0 && (
-              <span className="parts-selection-count">
-                {selectedIds.length} selected
-              </span>
-            )}
-          </div>
-
-          <div className="parts-toolbar-right">
-            <select
-              value={exportType}
-              onChange={(e) => setExportType(e.target.value)}
-            >
-              <option value="csv">CSV</option>
-              <option value="txt">TXT</option>
-              <option value="pdf">PDF</option>
-            </select>
-            <button type="button" className="parts-btn" onClick={handleExport}>
-              Export
-            </button>
-          </div>
-        </div>
-
         <AppDataGrid
           rowData={filteredParts}
           columnDefs={columnDefs}
@@ -277,7 +256,39 @@ function Parts({ searchText = "" }) {
           onSelectionChanged={handleSelectionChanged}
           onGridReady={handleGridReady}
           loading={loading}
+          searchPlaceholder="Search parts..."
           overlayNoRowsTemplate="<span>No parts found.</span>"
+          toolbarActions={
+            <>
+              <button type="button" className="parts-btn primary" onClick={openAddModal}>
+                Add
+              </button>
+              <button
+                type="button"
+                className="parts-btn danger"
+                onClick={deleteSelected}
+                disabled={selectedIds.length === 0}
+              >
+                Delete
+              </button>
+              {selectedIds.length > 0 && (
+                <span className="parts-selection-count">
+                  {selectedIds.length} selected
+                </span>
+              )}
+              <select
+                value={exportType}
+                onChange={(e) => setExportType(e.target.value)}
+              >
+                <option value="csv">CSV</option>
+                <option value="txt">TXT</option>
+                <option value="pdf">PDF</option>
+              </select>
+              <button type="button" className="parts-btn" onClick={handleExport}>
+                Export
+              </button>
+            </>
+          }
         />
       </div>
 

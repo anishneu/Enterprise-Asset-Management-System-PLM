@@ -1,0 +1,85 @@
+.approvals-page.grid-page {
+  gap: 12px;
+}
+
+.approvals-page-hint {
+  margin: 0;
+}
+
+.training-curriculum-hint {
+  margin: 0 0 12px;
+}
+
+.training-field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.82rem;
+}
+
+.training-completion {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.training-completion--pending {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.training-completion--in-progress {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.training-completion--completed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.approvals-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.approvals-btn-sm {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.approvals-empty {
+  padding: 24px;
+  margin: 0;
+}
+
+.approvals-comments {
+  max-width: 280px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.approvals-reject-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.approvals-reject-textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.approvals-reject-textarea--error {
+  border-color: #dc2626;
+}
+
+.approvals-field-error {
+  color: #dc2626;
+  font-size: 0.8rem;
+}

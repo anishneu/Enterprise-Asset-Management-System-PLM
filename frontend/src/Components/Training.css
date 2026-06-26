@@ -1,0 +1,78 @@
+.training-assign-fill {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding-bottom: 24px;
+}
+
+.training-assign-body {
+  max-width: 640px;
+}
+
+.training-assign-actions {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--tv-border);
+}
+
+.training-readonly {
+  background: var(--tv-surface-muted);
+  color: var(--tv-text-muted);
+  cursor: not-allowed;
+}
+
+.trainee-combobox {
+  position: relative;
+}
+
+.trainee-combobox-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  overflow-y: auto;
+  background: var(--tv-surface);
+  border: 1px solid var(--tv-border);
+  border-radius: var(--tv-radius-sm);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.trainee-combobox-option,
+.trainee-combobox-empty {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  text-align: left;
+}
+
+.trainee-combobox-option {
+  border: none;
+  border-radius: var(--tv-radius-sm);
+  background: transparent;
+  color: var(--tv-text);
+  cursor: pointer;
+}
+
+.trainee-combobox-option:hover,
+.trainee-combobox-option:focus-visible {
+  background: var(--tv-surface-muted);
+  outline: none;
+}
+
+.trainee-combobox-empty {
+  color: var(--tv-text-muted);
+}
+
+.training-disapprove-btn {
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}

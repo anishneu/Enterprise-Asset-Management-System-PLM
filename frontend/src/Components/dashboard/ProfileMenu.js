@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
-function ProfileMenu({ username, email, onLogout }) {
+import ProfileAvatar from "../common/ProfileAvatar";
+
+function ProfileMenu({ username, email, avatarUrl, onSettings, onHelp, onLogout }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
 
   const displayName = username || "User";
-  const initial = displayName.charAt(0).toUpperCase();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -18,6 +19,11 @@ function ProfileMenu({ username, email, onLogout }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleNavigate = (callback) => {
+    setOpen(false);
+    callback?.();
+  };
+
   return (
     <div className="profile-menu" ref={menuRef}>
       <button
@@ -27,7 +33,7 @@ function ProfileMenu({ username, email, onLogout }) {
         aria-expanded={open}
         aria-haspopup="true"
       >
-        <span className="profile-avatar">{initial}</span>
+        <ProfileAvatar name={displayName} avatarUrl={avatarUrl} />
         <span className="profile-name">{displayName}</span>
         <span className="profile-chevron">{open ? "▴" : "▾"}</span>
       </button>
@@ -35,7 +41,11 @@ function ProfileMenu({ username, email, onLogout }) {
       {open && (
         <div className="profile-dropdown">
           <div className="profile-dropdown-header">
-            <span className="profile-avatar profile-avatar-lg">{initial}</span>
+            <ProfileAvatar
+              name={displayName}
+              avatarUrl={avatarUrl}
+              size="lg"
+            />
             <div>
               <strong>{displayName}</strong>
               {email && <span className="profile-email">{email}</span>}
@@ -46,11 +56,26 @@ function ProfileMenu({ username, email, onLogout }) {
 
           <button
             type="button"
+            className="profile-dropdown-item"
+            onClick={() => handleNavigate(onSettings)}
+          >
+            Settings
+          </button>
+
+          <button
+            type="button"
+            className="profile-dropdown-item"
+            onClick={() => handleNavigate(onHelp)}
+          >
+            Help &amp; Support
+          </button>
+
+          <div className="profile-dropdown-divider" />
+
+          <button
+            type="button"
             className="profile-dropdown-item profile-dropdown-item-danger"
-            onClick={() => {
-              setOpen(false);
-              onLogout();
-            }}
+            onClick={() => handleNavigate(onLogout)}
           >
             Logout
           </button>

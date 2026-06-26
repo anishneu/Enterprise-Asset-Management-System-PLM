@@ -1,116 +1,335 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppDataGrid from "./common/AppDataGrid";
-import { createEditColumn, multiRowSelection } from "./common/gridHelpers";
+import UserActionsCellRenderer from "./common/UserActionsCellRenderer";
+import { multiRowSelection } from "./common/gridHelpers";
 import apiClient from "../api/client";
+import { usePageInsight } from "./dashboard/PageInsightContext";
 import { filterBySearch } from "../utils/filterBySearch";
+import { useAppFeedback } from "../context/AppFeedbackContext";
 
-const emptyUser = {
-  id: null,
+import "./Users.css";
+
+const emptyAddForm = {
   username: "",
+  firstName: "",
+  lastName: "",
   email: "",
-  password: "",
-  enabled: true,
+};
+
+const emptyEditForm = {
+  firstName: "",
+  lastName: "",
+  email: "",
 };
 
 function Users({ searchText = "" }) {
   const [users, setUsers] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [form, setForm] = useState(emptyUser);
-  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [addForm, setAddForm] = useState(emptyAddForm);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const rowSelection = useMemo(() => multiRowSelection, []);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [activeUserId, setActiveUserId] = useState(null);
+  const [actionUser, setActionUser] = useState(null);
+  const [actionDialog, setActionDialog] = useState(null);
+  const [editForm, setEditForm] = useState(emptyEditForm);
+  const [passwordForm, setPasswordForm] = useState({ password: "", confirm: "" });
+  const [emailForm, setEmailForm] = useState({ email: "" });
+  const [statusForm, setStatusForm] = useState({ status: "Active" });
+  const [actionMenu, setActionMenu] = useState(null);
+  const { setInsight } = usePageInsight();
+  const feedback = useAppFeedback();
 
   const filteredUsers = useMemo(
-    () => filterBySearch(users, searchText, ["username", "email", "enabled"]),
+    () =>
+      filterBySearch(users, searchText, [
+        "username",
+        "name",
+        "firstName",
+        "lastName",
+        "email",
+        "groups",
+        "status",
+      ]),
     [users, searchText]
   );
 
-  useEffect(() => {
-    fetchUsers();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const activeUser = useMemo(
+    () => users.find((user) => user.id === activeUserId) || null,
+    [users, activeUserId]
+  );
 
-  const fetchUsers = async () => {
+  const rowSelection = useMemo(() => multiRowSelection, []);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await apiClient.get("/users");
       setUsers(res.data);
     } catch (err) {
       console.error(err);
-      alert("Failed to load users. Check that you are logged in.");
+      feedback.error("Failed to load users. Check that you are logged in.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [feedback]);
 
-  const openAddModal = () => {
-    setForm(emptyUser);
-    setShowModal(true);
-  };
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
-  const openEditModal = useCallback((user) => {
-    setForm({
-      id: user.id,
-      username: user.username || "",
-      email: user.email || "",
-      password: "",
-      enabled: user.enabled !== false,
+  useEffect(() => {
+    setInsight({
+      recordCount: filteredUsers.length,
+      selectedCount: selectedIds.length,
+      userDetail: activeUser
+        ? {
+            id: activeUser.id,
+            username: activeUser.username,
+            name: activeUser.name,
+            email: activeUser.email,
+            groups: activeUser.groups,
+            status: activeUser.status || (activeUser.enabled ? "Active" : "Inactive"),
+          }
+        : null,
     });
-    setShowModal(true);
-  }, []);
+  }, [filteredUsers.length, selectedIds.length, activeUser, setInsight]);
 
-  const closeModal = () => {
-    setShowModal(false);
-    setForm(emptyUser);
+  const closeActionDialog = () => {
+    setActionDialog(null);
+    setActionUser(null);
+    setEditForm(emptyEditForm);
+    setPasswordForm({ password: "", confirm: "" });
+    setEmailForm({ email: "" });
+    setStatusForm({ status: "Active" });
   };
 
-  const saveUser = async () => {
-    if (form.id) {
-      if (!form.email.trim()) {
-        alert("Email is required.");
-        return;
-      }
+  const handleUserAction = useCallback((action, user) => {
+    setActionMenu(null);
+    setActionUser(user);
 
-      setSaving(true);
-      try {
-        const payload = {
-          email: form.email.trim(),
-          enabled: form.enabled,
-        };
-
-        if (form.password.trim()) {
-          payload.password = form.password.trim();
-        }
-
-        await apiClient.put(`/users/${form.id}`, payload);
-        await fetchUsers();
-        closeModal();
-      } catch (err) {
-        console.error(err);
-        const message = err.response?.data?.detail || "Failed to update user";
-        alert(message);
-      } finally {
-        setSaving(false);
-      }
+    if (action === "edit") {
+      setEditForm({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        email: user.email || "",
+      });
+      setActionDialog("edit");
       return;
     }
 
-    if (!form.username.trim() || !form.email.trim() || !form.password.trim()) {
-      alert("Username, email, and password are required.");
+    if (action === "password") {
+      setPasswordForm({ password: "", confirm: "" });
+      setActionDialog("password");
+      return;
+    }
+
+    if (action === "email") {
+      setEmailForm({ email: user.email || "" });
+      setActionDialog("email");
+      return;
+    }
+
+    if (action === "status") {
+      setStatusForm({
+        status: user.status || (user.enabled ? "Active" : "Inactive"),
+      });
+      setActionDialog("status");
+    }
+  }, []);
+
+  const handleOpenUserMenu = useCallback((user, anchor) => {
+    const rect = anchor.getBoundingClientRect();
+    const menuWidth = 190;
+
+    setActionMenu((current) => {
+      if (current?.user?.id === user.id) {
+        return null;
+      }
+
+      return {
+        user,
+        top: rect.bottom + 4,
+        left: Math.max(8, rect.right - menuWidth),
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!actionMenu) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (event.target.closest(".user-actions-menu")) return;
+      if (event.target.closest(".user-actions-trigger")) return;
+      setActionMenu(null);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") setActionMenu(null);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [actionMenu]);
+
+  const gridContext = useMemo(
+    () => ({
+      onOpenUserMenu: handleOpenUserMenu,
+      onUserAction: handleUserAction,
+    }),
+    [handleOpenUserMenu, handleUserAction]
+  );
+
+  const columnDefs = useMemo(
+    () => [
+      { field: "username", headerName: "Username", minWidth: 150 },
+      { field: "firstName", headerName: "First Name", minWidth: 140, flex: 0.8 },
+      { field: "lastName", headerName: "Last Name", minWidth: 140, flex: 0.8 },
+      { field: "email", headerName: "Email", minWidth: 220, flex: 1.2 },
+      { field: "groups", headerName: "Groups", minWidth: 160 },
+      {
+        field: "status",
+        headerName: "Status",
+        maxWidth: 120,
+        valueGetter: (params) => params.data.status || (params.data.enabled ? "Active" : "Inactive"),
+      },
+      {
+        headerName: "",
+        colId: "actions",
+        maxWidth: 72,
+        sortable: false,
+        filter: false,
+        cellClass: "user-actions-column",
+        cellRenderer: UserActionsCellRenderer,
+      },
+    ],
+    []
+  );
+
+  const openAddModal = () => {
+    setAddForm(emptyAddForm);
+    setShowAddModal(true);
+  };
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setAddForm(emptyAddForm);
+  };
+
+  const saveUser = async () => {
+    if (!addForm.username.trim() || !addForm.email.trim()) {
+      feedback.error("Username and email are required.");
       return;
     }
 
     setSaving(true);
     try {
       await apiClient.post("/users", {
-        username: form.username.trim(),
-        email: form.email.trim(),
-        password: form.password.trim(),
+        username: addForm.username.trim(),
+        firstName: addForm.firstName.trim() || undefined,
+        lastName: addForm.lastName.trim() || undefined,
+        email: addForm.email.trim(),
       });
       await fetchUsers();
-      closeModal();
+      closeAddModal();
     } catch (err) {
       console.error(err);
-      const message = err.response?.data?.detail || "Failed to add user";
-      alert(message);
+      feedback.error(err.response?.data?.detail || "Failed to add user");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveEditUser = async () => {
+    if (!actionUser) return;
+
+    setSaving(true);
+    try {
+      await apiClient.put(`/users/${actionUser.id}`, {
+        firstName: editForm.firstName.trim(),
+        lastName: editForm.lastName.trim(),
+        email: editForm.email.trim(),
+      });
+      await fetchUsers();
+      closeActionDialog();
+    } catch (err) {
+      console.error(err);
+      feedback.error(err.response?.data?.detail || "Failed to update user.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePassword = async () => {
+    if (!actionUser) return;
+
+    if (!passwordForm.password.trim()) {
+      feedback.error("Enter a new password.");
+      return;
+    }
+
+    if (passwordForm.password !== passwordForm.confirm) {
+      feedback.error("Passwords do not match.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiClient.put(`/users/${actionUser.id}`, {
+        password: passwordForm.password.trim(),
+      });
+      await fetchUsers();
+      closeActionDialog();
+      feedback.success("Password updated successfully.");
+    } catch (err) {
+      console.error(err);
+      feedback.error(err.response?.data?.detail || "Failed to reset password.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveEmail = async () => {
+    if (!actionUser) return;
+
+    if (!emailForm.email.trim()) {
+      feedback.error("Enter an email address.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiClient.put(`/users/${actionUser.id}`, {
+        email: emailForm.email.trim(),
+      });
+      await fetchUsers();
+      closeActionDialog();
+    } catch (err) {
+      console.error(err);
+      feedback.error(err.response?.data?.detail || "Failed to reset email.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveStatus = async () => {
+    if (!actionUser) return;
+
+    setSaving(true);
+    try {
+      await apiClient.put(`/users/${actionUser.id}`, {
+        enabled: statusForm.status === "Active",
+      });
+      await fetchUsers();
+      closeActionDialog();
+    } catch (err) {
+      console.error(err);
+      feedback.error(err.response?.data?.detail || "Failed to change status.");
     } finally {
       setSaving(false);
     }
@@ -118,7 +337,7 @@ function Users({ searchText = "" }) {
 
   const deleteSelected = async () => {
     if (selectedIds.length === 0) {
-      alert("Select at least one user to delete.");
+      feedback.error("Select at least one user to delete.");
       return;
     }
 
@@ -127,15 +346,15 @@ function Users({ searchText = "" }) {
     }
 
     try {
-      await Promise.all(
-        selectedIds.map((id) => apiClient.delete(`/users/${id}`))
-      );
+      await Promise.all(selectedIds.map((id) => apiClient.delete(`/users/${id}`)));
+      if (selectedIds.includes(activeUserId)) {
+        setActiveUserId(null);
+      }
       setSelectedIds([]);
       await fetchUsers();
     } catch (err) {
       console.error(err);
-      const message = err.response?.data?.detail || "Failed to delete user";
-      alert(message);
+      feedback.error(err.response?.data?.detail || "Failed to delete user(s).");
     }
   };
 
@@ -144,114 +363,270 @@ function Users({ searchText = "" }) {
     setSelectedIds(ids);
   }, []);
 
-  const gridContext = useMemo(
-    () => ({
-      onEdit: openEditModal,
-    }),
-    [openEditModal]
-  );
+  const handleRowClicked = useCallback((event) => {
+    setActiveUserId(event.data?.id ?? null);
+  }, []);
 
-  const columnDefs = useMemo(
-    () => [
-      createEditColumn(),
-      { field: "username", headerName: "Username" },
-      { field: "email", headerName: "Email" },
-      {
-        field: "enabled",
-        headerName: "Active",
-        maxWidth: 110,
-        valueFormatter: (params) => (params.value ? "Yes" : "No"),
-      },
-    ],
-    []
-  );
+  const getUserRowId = useCallback((params) => String(params.data.id), []);
 
   return (
-    <div className="grid-wrapper">
-      <div className="parts-toolbar">
-        <div className="parts-toolbar-left">
-          <button type="button" className="parts-btn primary" onClick={openAddModal}>
-            + Add User
-          </button>
-          <button
-            type="button"
-            className="parts-btn danger"
-            onClick={deleteSelected}
-            disabled={selectedIds.length === 0}
-          >
-            Delete
-          </button>
-          {selectedIds.length > 0 && (
-            <span className="parts-selection-count">
-              {selectedIds.length} selected
-            </span>
-          )}
-        </div>
-      </div>
-
+    <div className="grid-page">
       <AppDataGrid
         rowData={filteredUsers}
         columnDefs={columnDefs}
         context={gridContext}
         rowSelection={rowSelection}
         onSelectionChanged={handleSelectionChanged}
+        onRowClicked={handleRowClicked}
+        getRowId={getUserRowId}
+        loading={loading}
+        searchPlaceholder="Search users..."
         overlayNoRowsTemplate="<span>No users found.</span>"
+        toolbarActions={
+          <>
+            <button type="button" className="parts-btn primary" onClick={openAddModal}>
+              + Add User
+            </button>
+            <button
+              type="button"
+              className="parts-btn danger"
+              onClick={deleteSelected}
+              disabled={selectedIds.length === 0}
+            >
+              Delete
+            </button>
+            {selectedIds.length > 0 && (
+              <span className="parts-selection-count">{selectedIds.length} selected</span>
+            )}
+          </>
+        }
       />
 
-      {showModal && (
+      {actionMenu && (
+        <div
+          className="user-actions-menu user-actions-menu--portal"
+          style={{
+            position: "fixed",
+            top: actionMenu.top,
+            left: actionMenu.left,
+            width: 190,
+            zIndex: 10000,
+          }}
+          role="menu"
+        >
+          <button type="button" onClick={() => handleUserAction("edit", actionMenu.user)}>
+            Edit user
+          </button>
+          <button type="button" onClick={() => handleUserAction("password", actionMenu.user)}>
+            Reset password
+          </button>
+          <button type="button" onClick={() => handleUserAction("email", actionMenu.user)}>
+            Reset email
+          </button>
+          <button type="button" onClick={() => handleUserAction("status", actionMenu.user)}>
+            Change status
+          </button>
+        </div>
+      )}
+
+      {showAddModal && (
         <div className="modal-overlay">
-          <div className="modal">
-            <h3>{form.id ? "Edit User" : "Add User"}</h3>
+          <div className="modal modal-user">
+            <h3>Add User</h3>
+            <p className="user-modal-intro">
+              New users are created as Active, assigned to user-group, and receive a temporary password.
+            </p>
 
-            <input
-              placeholder="Username"
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              disabled={Boolean(form.id)}
-            />
+            <div className="user-modal-form">
+              <div className="user-modal-row">
+                <div className="user-modal-field">
+                  <label htmlFor="add-first-name">First name</label>
+                  <input
+                    id="add-first-name"
+                    placeholder="First name"
+                    value={addForm.firstName}
+                    onChange={(e) => setAddForm({ ...addForm, firstName: e.target.value })}
+                  />
+                </div>
 
-            <input
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
+                <div className="user-modal-field">
+                  <label htmlFor="add-last-name">Last name</label>
+                  <input
+                    id="add-last-name"
+                    placeholder="Last name"
+                    value={addForm.lastName}
+                    onChange={(e) => setAddForm({ ...addForm, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
 
-            <input
-              placeholder={form.id ? "New password (optional)" : "Password"}
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-
-            {form.id && (
-              <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div className="user-modal-field">
+                <label htmlFor="add-username">Username</label>
                 <input
-                  type="checkbox"
-                  checked={form.enabled}
-                  onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+                  id="add-username"
+                  placeholder="Username"
+                  value={addForm.username}
+                  onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
                 />
-                Active
-              </label>
-            )}
+              </div>
+
+              <div className="user-modal-field">
+                <label htmlFor="add-email">Email</label>
+                <input
+                  id="add-email"
+                  placeholder="Email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                />
+              </div>
+            </div>
 
             <div className="modal-actions">
-              <button
-                type="button"
-                className="parts-btn primary"
-                onClick={saveUser}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : form.id ? "Save" : "Add"}
+              <button type="button" className="parts-btn primary" onClick={saveUser} disabled={saving}>
+                {saving ? "Saving..." : "Add"}
               </button>
-              <button
-                type="button"
-                className="parts-btn"
-                onClick={closeModal}
-                disabled={saving}
-              >
+              <button type="button" className="parts-btn" onClick={closeAddModal} disabled={saving}>
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {actionDialog && actionUser && (
+        <div className="modal-overlay">
+          <div className="modal modal-user">
+            {actionDialog === "edit" && (
+              <>
+                <h3>Edit user</h3>
+                <div className="user-modal-form">
+                  <div className="user-modal-field">
+                    <label>Username</label>
+                    <div className="user-modal-readonly">{actionUser.username}</div>
+                  </div>
+                  <div className="user-modal-row">
+                    <div className="user-modal-field">
+                      <label htmlFor="edit-first-name">First name</label>
+                      <input
+                        id="edit-first-name"
+                        value={editForm.firstName}
+                        onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                      />
+                    </div>
+                    <div className="user-modal-field">
+                      <label htmlFor="edit-last-name">Last name</label>
+                      <input
+                        id="edit-last-name"
+                        value={editForm.lastName}
+                        onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="user-modal-field">
+                    <label htmlFor="edit-email">Email</label>
+                    <input
+                      id="edit-email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="parts-btn primary" onClick={saveEditUser} disabled={saving}>
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button type="button" className="parts-btn" onClick={closeActionDialog} disabled={saving}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {actionDialog === "password" && (
+              <>
+                <h3>Reset password</h3>
+                <p className="user-modal-intro">Set a new password for {actionUser.username}.</p>
+                <div className="user-modal-form">
+                  <div className="user-modal-field">
+                  <label htmlFor="new-password">New password</label>
+                  <input
+                    id="new-password"
+                    type="password"
+                    value={passwordForm.password}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, password: e.target.value })}
+                  />
+                </div>
+                <div className="user-modal-field">
+                  <label htmlFor="confirm-password">Confirm password</label>
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    value={passwordForm.confirm}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                  />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="parts-btn primary" onClick={savePassword} disabled={saving}>
+                    {saving ? "Saving..." : "Reset password"}
+                  </button>
+                  <button type="button" className="parts-btn" onClick={closeActionDialog} disabled={saving}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {actionDialog === "email" && (
+              <>
+                <h3>Reset email</h3>
+                <div className="user-modal-form">
+                  <div className="user-modal-field">
+                  <label htmlFor="reset-email">Email</label>
+                  <input
+                    id="reset-email"
+                    value={emailForm.email}
+                    onChange={(e) => setEmailForm({ email: e.target.value })}
+                  />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="parts-btn primary" onClick={saveEmail} disabled={saving}>
+                    {saving ? "Saving..." : "Save email"}
+                  </button>
+                  <button type="button" className="parts-btn" onClick={closeActionDialog} disabled={saving}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {actionDialog === "status" && (
+              <>
+                <h3>Change status</h3>
+                <div className="user-modal-form">
+                  <div className="user-modal-field">
+                  <label htmlFor="user-status">Status</label>
+                  <select
+                    id="user-status"
+                    value={statusForm.status}
+                    onChange={(e) => setStatusForm({ status: e.target.value })}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="parts-btn primary" onClick={saveStatus} disabled={saving}>
+                    {saving ? "Saving..." : "Save status"}
+                  </button>
+                  <button type="button" className="parts-btn" onClick={closeActionDialog} disabled={saving}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

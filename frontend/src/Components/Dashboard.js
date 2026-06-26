@@ -1,255 +1,1020 @@
 import "./Dashboard.css";
+
 import keycloak from "../keycloak";
 
-import { useState, useEffect, useMemo } from "react";
 
-import logoBird from "../media/logo_bird.png";
+
+import { useState, useEffect, useMemo, useCallback } from "react";
+
+
+
+import tvAmsIcon from "../media/tv_ams_icon.png";
+
+
+
+import DashboardHome from "./DashboardHome";
 
 import Parts from "./Parts";
+
 import Users from "./Users";
+import Groups from "./Groups";
+
 import Docs from "./Docs";
-import Asset from "./Asset";
+
 import Training from "./Training";
+
+import TrainingCurriculum from "./TrainingCurriculum";
+
+import Approvals from "./Approvals";
+
 import Forms from "./Forms";
 
+import Settings from "./Settings";
+
+import HelpSupport from "./HelpSupport";
+
 import ProfileMenu from "./dashboard/ProfileMenu";
+
 import GlobalSearch from "./dashboard/GlobalSearch";
+
 import SidebarItem from "./dashboard/SidebarItem";
+
+import SidebarNavGroup from "./dashboard/SidebarNavGroup";
+
+import SectionInsightPanel from "./dashboard/SectionInsightPanel";
+
+import { PageInsightContext } from "./dashboard/PageInsightContext";
+
+import { useProfile } from "../context/ProfileContext";
+
 import {
+
   IconFolder,
-  IconBox,
-  IconFile,
+
   IconGraduation,
+
   IconForm,
-  IconUsers,
+
+  IconHome,
+
+  IconShield,
+
+  IconClipboardCheck,
+
 } from "./dashboard/NavIcons";
 
+
+
 const SECTION_LABELS = {
+
+  dashboard: "Dashboard",
+
   parts: "Parts",
-  docs: "Documentation",
-  training: "Training",
-  forms: "Forms",
+
+  docs: "Documents",
+
+  "forms-builder": "Formbuilder",
+
+  "forms-saved": "Saved Forms",
+
+  "training-records": "Records",
+
+  "training-curriculum": "Curriculum",
+
+  "approvals-pending": "Pending Requests",
+
+  "approvals-my": "My Requests",
+
+  "approvals-approved": "Approved",
+
+  "approvals-rejected": "Rejected",
+
   users: "Users",
-  asset: "Assets",
+
+  groups: "Groups",
+
+  settings: "Settings",
+
+  "help-support": "Help & Support",
+
 };
+
+
 
 const SECTION_DESCRIPTIONS = {
+
+  dashboard: "Overview of your TalonVault workspace.",
+
   parts: "Manage part numbers, revisions, and inventory records.",
+
   docs: "Browse and add documentation linked to forms and types.",
-  training: "Track training records and assignments.",
-  forms: "Build and manage dynamic form templates.",
-  users: "Manage Keycloak user accounts and access.",
-  asset: "View asset documentation and metadata.",
+
+  "forms-builder": "Drag and drop fields to build form templates.",
+
+  "forms-saved": "Review saved form templates and JSON definitions.",
+
+  "training-records": "Track training assignments and due dates.",
+
+  "training-curriculum": "Plan training paths and competency requirements.",
+
+  "approvals-pending": "Review approval requests awaiting your action.",
+
+  "approvals-my": "Track submissions you have sent for approval.",
+
+  "approvals-approved": "Browse requests that have been approved.",
+
+  "approvals-rejected": "Browse requests that were declined or sent back.",
+
+  users: "Manage Keycloak users, groups, and account status.",
+
+  groups: "Browse Keycloak groups with roles and permission mappings.",
+
+  settings: "Manage your profile picture and workspace preferences.",
+
+  "help-support": "Guides, FAQs, and support contact information.",
+
 };
 
+
+
+const SCROLLABLE_MENUS = new Set([
+
+  "dashboard",
+
+  "docs",
+
+  "forms-builder",
+
+  "forms-saved",
+
+  "training-records",
+
+  "training-curriculum",
+
+  "settings",
+
+  "help-support",
+
+]);
+
+
+
+const ASSETS_MENUS = new Set(["parts", "docs"]);
+
+const FORMS_MENUS = new Set(["forms-builder", "forms-saved"]);
+
+const TRAINING_MENUS = new Set(["training-records", "training-curriculum"]);
+
+const APPROVALS_MENUS = new Set([
+  "approvals-pending",
+  "approvals-my",
+  "approvals-approved",
+  "approvals-rejected",
+]);
+
+const ADMIN_MENUS = new Set(["users", "groups"]);
+
+
+
+const ACCOUNT_MENUS = new Set(["settings", "help-support"]);
+
+
+
 function Dashboard() {
-  const [assetOpen, setAssetOpen] = useState(true);
+
+  const [assetsOpen, setAssetsOpen] = useState(true);
+
+  const [formsOpen, setFormsOpen] = useState(false);
+
+  const [trainingOpen, setTrainingOpen] = useState(false);
+
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
+
+  const [administrationOpen, setAdministrationOpen] = useState(false);
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeMenu, setActiveMenu] = useState("parts");
+
+  const [activeMenu, setActiveMenu] = useState("dashboard");
+
   const [contentSearch, setContentSearch] = useState("");
 
+  const [pageInsight, setPageInsight] = useState({});
+
+  const { avatarUrl } = useProfile();
+
+
+
   const username = keycloak.tokenParsed?.preferred_username || "User";
+
   const email = keycloak.tokenParsed?.email || "";
+
+
 
   const activeSectionLabel = SECTION_LABELS[activeMenu] || "Dashboard";
 
+
+
   useEffect(() => {
+
     document.title = "TalonVault";
+
   }, []);
+
+
+
+  const openParentForMenu = useCallback((menuId) => {
+
+    if (ASSETS_MENUS.has(menuId)) setAssetsOpen(true);
+
+    if (FORMS_MENUS.has(menuId)) setFormsOpen(true);
+
+    if (TRAINING_MENUS.has(menuId)) setTrainingOpen(true);
+
+    if (APPROVALS_MENUS.has(menuId)) setApprovalsOpen(true);
+
+    if (ADMIN_MENUS.has(menuId)) setAdministrationOpen(true);
+
+  }, []);
+
+
+
+  const closeAllNavGroups = useCallback(() => {
+
+    setAssetsOpen(false);
+
+    setFormsOpen(false);
+
+    setTrainingOpen(false);
+
+    setApprovalsOpen(false);
+
+    setAdministrationOpen(false);
+
+  }, []);
+
+
+
+  const toggleSidebar = useCallback(() => {
+
+    setSidebarOpen((wasOpen) => {
+
+      if (wasOpen) {
+
+        closeAllNavGroups();
+
+      } else {
+
+        openParentForMenu(activeMenu);
+
+      }
+
+      return !wasOpen;
+
+    });
+
+  }, [activeMenu, closeAllNavGroups, openParentForMenu]);
+
+
+
+  const createNavGroupToggle = useCallback(
+
+    (setter) => () => {
+
+      if (!sidebarOpen) {
+
+        setSidebarOpen(true);
+
+        closeAllNavGroups();
+
+        setter(true);
+
+        return;
+
+      }
+
+      setter((open) => !open);
+
+    },
+
+    [sidebarOpen, closeAllNavGroups]
+
+  );
+
+
 
   const handleLogout = () => {
+
     keycloak.logout({
+
       redirectUri: window.location.origin,
+
     });
+
   };
+
+
 
   const navigateToSection = (menuId, searchText = "") => {
+
     if (menuId) {
+
+      openParentForMenu(menuId);
+
       setActiveMenu(menuId);
-      if (menuId === "parts" || menuId === "docs") {
-        setAssetOpen(true);
-      }
+
     }
+
     setContentSearch(searchText);
+
   };
+
+
 
   const handleMenuSelect = (menuId) => {
+
+    openParentForMenu(menuId);
+
     setActiveMenu(menuId);
+
     setContentSearch("");
+
+    setPageInsight({});
+
   };
 
+
+
+  const insightContextValue = useMemo(
+
+    () => ({
+
+      insight: pageInsight,
+
+      setInsight: setPageInsight,
+
+    }),
+
+    [pageInsight]
+
+  );
+
+
+
   const footerStatus = useMemo(() => {
+
     const now = new Date();
+
     return now.toLocaleDateString(undefined, {
+
       weekday: "short",
+
       year: "numeric",
+
       month: "short",
+
       day: "numeric",
+
     });
+
   }, []);
 
+
+
+  const insightSection = useMemo(() => {
+
+    if (activeMenu === "docs") return "docs";
+
+    if (FORMS_MENUS.has(activeMenu)) return "forms";
+
+    if (TRAINING_MENUS.has(activeMenu)) return "training";
+
+    if (APPROVALS_MENUS.has(activeMenu)) return "approvals";
+
+    if (ADMIN_MENUS.has(activeMenu)) return activeMenu;
+
+    if (activeMenu === "parts") return "parts";
+
+    if (activeMenu === "dashboard") return "dashboard";
+
+    return activeMenu;
+
+  }, [activeMenu]);
+
+
+
   return (
+
     <div
+
       className={`Dashboard ${sidebarOpen ? "" : "sidebar-collapsed"}`}
-      style={{
-        gridTemplateColumns: sidebarOpen ? "250px 1fr" : "72px 1fr",
-      }}
+
     >
+
       <header className="north">
+
         <div className="navbar-inner">
+
           <div className="navbar-brand">
+
             <button
+
               type="button"
+
               className="sidebar-toggle"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+
+              onClick={toggleSidebar}
+
               aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+
             >
+
               <span className="sidebar-toggle-icon" aria-hidden="true">☰</span>
+
             </button>
 
+
+
             <div className="brand-cluster">
-              <img src={logoBird} alt="TalonVault logo" className="logo" />
+
+              <img
+                src={tvAmsIcon}
+                alt=""
+                className="brand-logo-mark"
+                aria-hidden="true"
+              />
+
               <div className="brand-text">
-                <h1 className="brand-title">TalonVault</h1>
-                <span className="brand-subtitle">Asset Management</span>
+
+                <h1 className="brand-title">
+                  <span className="brand-title-talon">Talon</span>
+                  <span className="brand-title-vault">Vault</span>
+                </h1>
+
+                <span className="brand-subtitle">Asset Management System</span>
+
               </div>
+
             </div>
+
           </div>
+
+
 
           <div className="navbar-search">
+
             <GlobalSearch onNavigate={navigateToSection} />
+
           </div>
+
+
 
           <div className="navbar-actions">
+
             <ProfileMenu
+
               username={username}
+
               email={email}
+
+              avatarUrl={avatarUrl}
+
+              onSettings={() => handleMenuSelect("settings")}
+
+              onHelp={() => handleMenuSelect("help-support")}
+
               onLogout={handleLogout}
+
             />
+
           </div>
+
         </div>
+
       </header>
 
-      <aside className={`west ${sidebarOpen ? "" : "collapsed"}`}>
-        {sidebarOpen && (
-          <div className="sidebar-section-label">Navigation</div>
-        )}
-        <ul className="sidebar-list">
-          <li
-            className={`menu-parent sidebar-item ${sidebarOpen ? "" : "menu-parent-collapsed"}`}
-            onClick={() => setAssetOpen(!assetOpen)}
-            data-tooltip={!sidebarOpen ? "Asset" : undefined}
-          >
-            <span className="sidebar-item-content">
-              <span className="sidebar-icon" aria-hidden="true">
-                <IconFolder />
-              </span>
-              {sidebarOpen && (
-                <span className="sidebar-label">
-                  Asset {assetOpen ? "▾" : "▸"}
-                </span>
-              )}
-            </span>
-          </li>
 
-          {assetOpen && (
-            <ul className={`submenu ${sidebarOpen ? "" : "submenu-collapsed"}`}>
+
+      <aside className={`west ${sidebarOpen ? "" : "collapsed"}`}>
+
+        {sidebarOpen && (
+
+          <div className="sidebar-section-label">Navigation</div>
+
+        )}
+
+        <ul className="sidebar-list">
+
+          <SidebarItem
+
+            label="Dashboard"
+
+            icon={IconHome}
+
+            active={activeMenu === "dashboard"}
+
+            collapsed={!sidebarOpen}
+
+            onClick={() => handleMenuSelect("dashboard")}
+
+          />
+
+
+
+          <SidebarNavGroup
+
+            label="Assets"
+
+            icon={IconFolder}
+
+            open={assetsOpen}
+
+            onToggle={createNavGroupToggle(setAssetsOpen)}
+
+            collapsed={!sidebarOpen}
+
+            active={ASSETS_MENUS.has(activeMenu)}
+
+          />
+
+
+
+          {sidebarOpen && assetsOpen && (
+
+            <ul className="submenu">
+
               <SidebarItem
+
                 label="Parts"
-                icon={IconBox}
+
+                showIcon={false}
+
                 active={activeMenu === "parts"}
+
                 collapsed={!sidebarOpen}
+
                 onClick={() => handleMenuSelect("parts")}
+
               />
+
               <SidebarItem
-                label="Docs"
-                icon={IconFile}
+
+                label="Documents"
+
+                showIcon={false}
+
                 active={activeMenu === "docs"}
+
                 collapsed={!sidebarOpen}
+
                 onClick={() => handleMenuSelect("docs")}
+
               />
+
             </ul>
+
           )}
 
-          <SidebarItem
-            label="Training"
-            icon={IconGraduation}
-            active={activeMenu === "training"}
-            collapsed={!sidebarOpen}
-            onClick={() => handleMenuSelect("training")}
-          />
 
-          <SidebarItem
+
+          <SidebarNavGroup
+
             label="Forms"
+
             icon={IconForm}
-            active={activeMenu === "forms"}
+
+            open={formsOpen}
+
+            onToggle={createNavGroupToggle(setFormsOpen)}
+
             collapsed={!sidebarOpen}
-            onClick={() => handleMenuSelect("forms")}
+
+            active={FORMS_MENUS.has(activeMenu)}
+
           />
 
-          <SidebarItem
-            label="Users"
-            icon={IconUsers}
-            active={activeMenu === "users"}
+
+
+          {sidebarOpen && formsOpen && (
+
+            <ul className="submenu">
+
+              <SidebarItem
+
+                label="Formbuilder"
+
+                showIcon={false}
+
+                active={activeMenu === "forms-builder"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("forms-builder")}
+
+              />
+
+              <SidebarItem
+
+                label="Saved Forms"
+
+                showIcon={false}
+
+                active={activeMenu === "forms-saved"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("forms-saved")}
+
+              />
+
+            </ul>
+
+          )}
+
+
+
+          <SidebarNavGroup
+
+            label="Training"
+
+            icon={IconGraduation}
+
+            open={trainingOpen}
+
+            onToggle={createNavGroupToggle(setTrainingOpen)}
+
             collapsed={!sidebarOpen}
-            onClick={() => handleMenuSelect("users")}
+
+            active={TRAINING_MENUS.has(activeMenu)}
+
           />
+
+
+
+          {sidebarOpen && trainingOpen && (
+
+            <ul className="submenu">
+
+              <SidebarItem
+
+                label="Records"
+
+                showIcon={false}
+
+                active={activeMenu === "training-records"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("training-records")}
+
+              />
+
+              <SidebarItem
+
+                label="Curriculum"
+
+                showIcon={false}
+
+                active={activeMenu === "training-curriculum"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("training-curriculum")}
+
+              />
+
+            </ul>
+
+          )}
+
+
+
+          <SidebarNavGroup
+
+            label="Approvals"
+
+            icon={IconClipboardCheck}
+
+            open={approvalsOpen}
+
+            onToggle={createNavGroupToggle(setApprovalsOpen)}
+
+            collapsed={!sidebarOpen}
+
+            active={APPROVALS_MENUS.has(activeMenu)}
+
+          />
+
+
+
+          {sidebarOpen && approvalsOpen && (
+
+            <ul className="submenu">
+
+              <SidebarItem
+
+                label="Pending Requests"
+
+                showIcon={false}
+
+                active={activeMenu === "approvals-pending"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("approvals-pending")}
+
+              />
+
+              <SidebarItem
+
+                label="My Requests"
+
+                showIcon={false}
+
+                active={activeMenu === "approvals-my"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("approvals-my")}
+
+              />
+
+              <SidebarItem
+
+                label="Approved"
+
+                showIcon={false}
+
+                active={activeMenu === "approvals-approved"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("approvals-approved")}
+
+              />
+
+              <SidebarItem
+
+                label="Rejected"
+
+                showIcon={false}
+
+                active={activeMenu === "approvals-rejected"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("approvals-rejected")}
+
+              />
+
+            </ul>
+
+          )}
+
+
+
+          <SidebarNavGroup
+
+            label="Administration"
+
+            icon={IconShield}
+
+            open={administrationOpen}
+
+            onToggle={createNavGroupToggle(setAdministrationOpen)}
+
+            collapsed={!sidebarOpen}
+
+            active={ADMIN_MENUS.has(activeMenu)}
+
+          />
+
+
+
+          {sidebarOpen && administrationOpen && (
+
+            <ul className="submenu">
+
+              <SidebarItem
+
+                label="Users"
+
+                showIcon={false}
+
+                active={activeMenu === "users"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("users")}
+
+              />
+
+              <SidebarItem
+
+                label="Groups"
+
+                showIcon={false}
+
+                active={activeMenu === "groups"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("groups")}
+
+              />
+
+            </ul>
+
+          )}
+
         </ul>
+
       </aside>
 
+
+
       <main className="center">
+
+        <div
+
+          className={`page-content${
+
+            activeMenu === "dashboard" || ACCOUNT_MENUS.has(activeMenu)
+
+              ? " page-content--solo"
+
+              : ""
+
+          }`}
+
+        >
+
         <div className="page-header">
+
           <div>
+
             <h2 className="page-title">{activeSectionLabel}</h2>
+
             <p className="page-subtitle">
+
               {SECTION_DESCRIPTIONS[activeMenu]}
+
             </p>
+
           </div>
+
         </div>
 
-        <div className="page-card">
-          {contentSearch && (
-            <div className="content-search-banner">
-              Showing results for <strong>{contentSearch}</strong>
-              <button
-                type="button"
-                onClick={() => setContentSearch("")}
-              >
-                Clear
-              </button>
+
+
+        {contentSearch && (
+
+          <div className="content-search-banner">
+
+            Showing results for <strong>{contentSearch}</strong>
+
+            <button type="button" onClick={() => setContentSearch("")}>
+
+              Clear
+
+            </button>
+
+          </div>
+
+        )}
+
+
+
+        <PageInsightContext.Provider value={insightContextValue}>
+
+          <div className="page-body">
+
+            <div
+
+              className={`page-main${
+
+                SCROLLABLE_MENUS.has(activeMenu) ? " page-main--scroll" : ""
+
+              }${activeMenu === "dashboard" ? " page-main--dashboard" : ""}`}
+
+            >
+
+              {activeMenu === "dashboard" && <DashboardHome />}
+
+              {activeMenu === "parts" && <Parts searchText={contentSearch} />}
+
+              {activeMenu === "docs" && <Docs searchText={contentSearch} />}
+
+              {activeMenu === "forms-builder" && (
+
+                <Forms searchText={contentSearch} view="builder" />
+
+              )}
+
+              {activeMenu === "forms-saved" && (
+
+                <Forms searchText={contentSearch} view="saved" />
+
+              )}
+
+              {activeMenu === "training-records" && (
+
+                <Training searchText={contentSearch} />
+
+              )}
+
+              {activeMenu === "training-curriculum" && (
+                <TrainingCurriculum searchText={contentSearch} />
+              )}
+
+              {activeMenu === "approvals-pending" && (
+                <Approvals view="pending" searchText={contentSearch} />
+              )}
+
+              {activeMenu === "approvals-my" && (
+                <Approvals view="my" searchText={contentSearch} />
+              )}
+
+              {activeMenu === "approvals-approved" && (
+                <Approvals view="approved" searchText={contentSearch} />
+              )}
+
+              {activeMenu === "approvals-rejected" && (
+                <Approvals view="rejected" searchText={contentSearch} />
+              )}
+
+              {activeMenu === "users" && <Users searchText={contentSearch} />}
+
+              {activeMenu === "groups" && <Groups searchText={contentSearch} />}
+
+              {activeMenu === "settings" && <Settings />}
+
+              {activeMenu === "help-support" && <HelpSupport />}
+
             </div>
-          )}
 
-          {activeMenu === "parts" && <Parts searchText={contentSearch} />}
-          {activeMenu === "users" && <Users searchText={contentSearch} />}
-          {activeMenu === "docs" && <Docs searchText={contentSearch} />}
-          {activeMenu === "asset" && <Asset searchText={contentSearch} />}
-          {activeMenu === "training" && <Training searchText={contentSearch} />}
-          {activeMenu === "forms" && <Forms searchText={contentSearch} />}
+
+
+            {activeMenu !== "dashboard" && !ACCOUNT_MENUS.has(activeMenu) && (
+
+              <SectionInsightPanel section={insightSection} insight={pageInsight} />
+
+            )}
+
+          </div>
+
+        </PageInsightContext.Provider>
+
         </div>
+
       </main>
 
+
+
       <footer className="south">
+
         <div className="footer-section footer-left">
+
           <span className="footer-brand">TalonVault</span>
+
           <span className="footer-divider">·</span>
-          <span>Asset Store Management</span>
+
+          <span>Asset Management System</span>
+
         </div>
+
+
 
         <div className="footer-section footer-center">
+
           <span className="footer-pill">{activeSectionLabel}</span>
+
           <span className="footer-divider">·</span>
+
           <span>{footerStatus}</span>
+
         </div>
+
+
 
         <div className="footer-section footer-right">
+
           <span>Secure session via Keycloak</span>
+
           <span className="footer-divider">·</span>
+
           <span>v1.0</span>
+
         </div>
+
       </footer>
+
     </div>
+
   );
+
 }
 
+
+
 export default Dashboard;
+

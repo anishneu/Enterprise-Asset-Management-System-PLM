@@ -1,0 +1,3 @@
+-- doctab uses `ftype` for form/document type (SOP, Policy, etc.)
+-- Renamed from `doctype` if upgrading an older schema:
+-- ALTER TABLE doctab CHANGE COLUMN doctype ftype VARCHAR(250) NOT NULL;

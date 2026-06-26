@@ -2,11 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import apiClient from "../../api/client";
 
 const MENU_ITEMS = [
-  { id: "parts", label: "Parts", category: "Asset", keywords: ["parts", "part", "asset"] },
-  { id: "docs", label: "Docs", category: "Asset", keywords: ["docs", "documents", "documentation"] },
-  { id: "training", label: "Training", category: "Training", keywords: ["training", "learn"] },
-  { id: "forms", label: "Forms", category: "Forms", keywords: ["forms", "form builder"] },
-  { id: "users", label: "Users", category: "Users", keywords: ["users", "user", "keycloak"] },
+  { id: "dashboard", label: "Dashboard", category: "Home", keywords: ["dashboard", "home", "overview"] },
+  { id: "parts", label: "Parts", category: "Assets", keywords: ["parts", "part", "asset"] },
+  { id: "docs", label: "Documents", category: "Assets", keywords: ["docs", "documents", "documentation"] },
+  { id: "forms-builder", label: "Formbuilder", category: "Forms", keywords: ["forms", "form builder", "builder"] },
+  { id: "forms-saved", label: "Saved Forms", category: "Forms", keywords: ["saved forms", "templates"] },
+  { id: "training-records", label: "Records", category: "Training", keywords: ["training", "records", "assignments"] },
+  { id: "training-curriculum", label: "Curriculum", category: "Training", keywords: ["curriculum", "training path"] },
+  { id: "approvals-pending", label: "Pending Requests", category: "Approvals", keywords: ["approvals", "pending", "requests"] },
+  { id: "approvals-my", label: "My Requests", category: "Approvals", keywords: ["approvals", "my requests", "submissions"] },
+  { id: "approvals-approved", label: "Approved", category: "Approvals", keywords: ["approvals", "approved"] },
+  { id: "approvals-rejected", label: "Rejected", category: "Approvals", keywords: ["approvals", "rejected", "declined"] },
+  { id: "users", label: "Users", category: "Administration", keywords: ["users", "user", "keycloak", "administration"] },
+  { id: "groups", label: "Groups", category: "Administration", keywords: ["groups", "group", "teams", "roles", "permissions"] },
 ];
 
 function matchesQuery(value, query) {
@@ -64,7 +72,8 @@ async function searchContent(query) {
       if (
         matchesQuery(doc.dname, query) ||
         matchesQuery(doc.ddesc, query) ||
-        matchesQuery(doc.doctype, query)
+        matchesQuery(doc.dtype, query) ||
+        matchesQuery(doc.ftype, query)
       ) {
         results.push({
           type: "doc",
@@ -72,7 +81,7 @@ async function searchContent(query) {
           menuId: "docs",
           label: doc.dname,
           category: "Docs",
-          subtitle: doc.doctype || "Document",
+          subtitle: [doc.dtype, doc.ftype].filter(Boolean).join(" · ") || "Document",
           searchText: doc.dname,
         });
       }
@@ -83,7 +92,9 @@ async function searchContent(query) {
     usersRes.value.data.forEach((user) => {
       if (
         matchesQuery(user.username, query) ||
-        matchesQuery(user.email, query)
+        matchesQuery(user.name, query) ||
+        matchesQuery(user.email, query) ||
+        matchesQuery(user.groups, query)
       ) {
         results.push({
           type: "user",
@@ -91,7 +102,7 @@ async function searchContent(query) {
           menuId: "users",
           label: user.username,
           category: "Users",
-          subtitle: user.email || "User account",
+          subtitle: user.name || user.email || "User account",
           searchText: user.username,
         });
       }
