@@ -38,12 +38,13 @@ def add_user(user: UserCreate, current_user: dict = Depends(get_current_user)):
             username=user.username,
             email=user.email,
             password=user.password,
+            first_name=user.firstName,
+            last_name=user.lastName,
+            name=user.name,
         )
+        created = _find_user(user_id)
         return {
-            "id": user_id,
-            "username": user.username,
-            "email": user.email,
-            "enabled": True,
+            **created,
             "created_by": actor,
         }
     except KeycloakPostError as exc:
@@ -69,6 +70,9 @@ def edit_user(user_id: str, user: UserUpdate, current_user: dict = Depends(get_c
             email=user.email,
             enabled=user.enabled,
             password=user.password,
+            first_name=user.firstName,
+            last_name=user.lastName,
+            name=user.name,
         )
         updated = _find_user(user_id)
         return {

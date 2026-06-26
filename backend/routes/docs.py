@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 
 from schemas.document import DocumentCreate, DocumentUpdate
 from services.doc_service import DocService
+from services.workflow_service import WorkflowService
+from constants.workflow import ENTITY_DOC
 from routes.auth import get_current_user
+from utils.display import actor_display
 
 router = APIRouter(
     prefix="/api/docs",
@@ -16,20 +19,59 @@ def _actor_name(current_user: dict) -> str:
 
 
 @router.get("/")
-def get_docs(current_user: dict = Depends(get_current_user)):
-    return DocService.get_all_docs()
+def get_docs(
+    dtype: str | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    return DocService.get_all_docs(dtype=dtype)
+
+
+@router.get("/{doc_id}")
+def get_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
+    doc = DocService.get_doc(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return doc
 
 
 @router.post("/")
 def add_doc(doc: DocumentCreate, current_user: dict = Depends(get_current_user)):
     actor = _actor_name(current_user)
-    print(f"Creating document '{doc.dname}' requested by '{actor}'")
+    print(f"Creating document requested by '{actor}'")
 
-    result = DocService.add_doc(doc.model_dump())
-    return {
-        **result,
-        "created_by": actor,
-    }
+    try:
+        payload = doc.model_dump()
+        if not payload.get("downer"):
+            payload["downer"] = actor_display(current_user)
+        if not payload.get("dstatus"):
+            payload["dstatus"] = "Draft"
+
+        created = DocService.add_doc(payload)
+        conn = None
+        try:
+            from database.db import get_connection
+
+            conn = get_connection()
+            cursor = conn.cursor(dictionary=True)
+            WorkflowService.log_history(
+                cursor,
+                entity_type=ENTITY_DOC,
+                entity_id=created["id"],
+                revision=created.get("drev"),
+                action="Created",
+                actor=current_user,
+            )
+            conn.commit()
+        finally:
+            if conn:
+                conn.close()
+
+        return {
+            **created,
+            "created_by": actor,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/{doc_id}")
@@ -41,20 +83,32 @@ def update_doc(doc_id: int, doc: DocumentUpdate, current_user: dict = Depends(ge
     if not payload:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    existing = next((d for d in DocService.get_all_docs() if d["id"] == doc_id), None)
+    existing = DocService.get_doc(doc_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Document not found")
 
     merged = {
         "dname": payload.get("dname", existing["dname"]),
-        "ddesc": payload.get("ddesc", existing["ddesc"]),
-        "doctype": payload.get("doctype", existing["doctype"]),
+        "ddesc": payload.get("ddesc", existing.get("ddesc")),
+        "dtype": payload.get("dtype", existing["dtype"]),
+        "ftype": payload.get("ftype", existing.get("ftype")),
+        "fid": payload.get("fid", existing.get("fid")),
         "fmat": payload.get("fmat", existing["fmat"]),
+        "drev": payload.get("drev", existing.get("drev") or "1"),
+        "dstatus": payload.get("dstatus", existing.get("dstatus") or "Draft"),
+        "dlink": payload.get("dlink", existing.get("dlink")),
+        "downer": payload.get("downer", existing.get("downer")),
+        "dapprover": payload.get("dapprover", existing.get("dapprover")),
+        "deffective": payload.get("deffective", existing.get("deffective")),
+        "fielddata": payload.get("fielddata", existing.get("fielddata")),
     }
 
-    result = DocService.update_doc(doc_id, merged)
+    try:
+        updated = DocService.update_doc(doc_id, merged)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
-        **result,
+        **updated,
         "updated_by": actor,
     }
 
@@ -64,12 +118,61 @@ def delete_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
     actor = _actor_name(current_user)
     print(f"Deleting document {doc_id} requested by '{actor}'")
 
-    existing = next((d for d in DocService.get_all_docs() if d["id"] == doc_id), None)
+    existing = DocService.get_doc(doc_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    result = DocService.delete_doc(doc_id)
+    try:
+        result = DocService.delete_doc(doc_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         **result,
         "deleted_by": actor,
     }
+
+
+@router.post("/{doc_id}/submit-review")
+def submit_doc_for_review(
+    doc_id: int,
+    payload: dict = Body(default_factory=dict),
+    current_user: dict = Depends(get_current_user),
+):
+    actor = _actor_name(current_user)
+    print(f"Submitting document {doc_id} for review by '{actor}'")
+
+    body = payload
+    approver = body.get("dapprover") or body.get("approver")
+    effective_date = body.get("deffective") or body.get("effectiveDate")
+
+    if not (approver or "").strip():
+        raise HTTPException(status_code=400, detail="Approver is required")
+
+    try:
+        updated = WorkflowService.submit_doc_for_review(
+            doc_id,
+            approver_username=approver.strip(),
+            effective_date=effective_date,
+            requester=current_user,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return updated
+
+
+@router.post("/{doc_id}/revise")
+def revise_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
+    actor = _actor_name(current_user)
+    print(f"Revising document {doc_id} requested by '{actor}'")
+
+    try:
+        updated = WorkflowService.revise_doc(doc_id, current_user)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return updated

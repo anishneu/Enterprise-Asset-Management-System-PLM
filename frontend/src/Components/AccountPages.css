@@ -1,0 +1,30 @@
+.account-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.account-card {
+  padding: 22px 24px;
+  border: 1px solid var(--tv-border);
+  border-radius: var(--tv-radius-md);
+  background: var(--tv-surface);
+  box-shadow: var(--tv-shadow-sm);
+}
+
+.account-card-header {
+  margin-bottom: 18px;
+}
+
+.account-card-header h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: var(--tv-text);
+}
+
+.account-card-header p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--tv-text-muted);
+}

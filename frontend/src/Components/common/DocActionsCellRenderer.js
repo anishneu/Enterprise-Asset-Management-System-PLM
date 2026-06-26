@@ -1,0 +1,73 @@
+import { canRevise } from "../../constants/workflowCatalog";
+
+function DocActionsCellRenderer({ data, context }) {
+  if (!data?.id || data.detailRow) return null;
+
+  return (
+    <div className="forms-saved-row-actions">
+      <button
+        type="button"
+        className="group-edit-btn"
+        aria-label={`Edit ${data.dname || "document"}`}
+        title="Edit document"
+        onClick={(event) => {
+          event.stopPropagation();
+          context?.onEditDoc?.(data);
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+        </svg>
+      </button>
+      {canRevise(data.dstatus) && (
+        <button
+          type="button"
+          className="forms-link-btn forms-revise-btn"
+          onClick={(event) => {
+            event.stopPropagation();
+            context?.onReviseDoc?.(data);
+          }}
+        >
+          Revise
+        </button>
+      )}
+      <button
+        type="button"
+        className="forms-delete-btn"
+        aria-label={`Delete ${data.dname || "document"}`}
+        title="Delete document"
+        onClick={(event) => {
+          event.stopPropagation();
+          context?.onDeleteDoc?.(data);
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+export default DocActionsCellRenderer;

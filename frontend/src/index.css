@@ -6,6 +6,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Login / auth error only — do not style dashboard controls globally */
 .appbox {
   width: 350px;
   margin: 80px auto;
@@ -16,14 +17,14 @@ body {
   text-align: center;
 }
 
-form {
+.appbox form {
   display: flex;
   flex-direction: column;
 }
 
-input,
-select,
-textarea {
+.appbox input,
+.appbox select,
+.appbox textarea {
   margin: 10px 0;
   padding: 12px 14px;
   border: 1px solid var(--tv-border);
@@ -33,15 +34,15 @@ textarea {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-input:focus,
-select:focus,
-textarea:focus {
+.appbox input:focus,
+.appbox select:focus,
+.appbox textarea:focus {
   outline: none;
   border-color: var(--tv-accent);
   box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
 }
 
-button {
+.appbox button {
   margin-top: 10px;
   padding: 12px;
   border: none;
@@ -50,7 +51,7 @@ button {
   font-family: inherit;
 }
 
-button:hover {
+.appbox button:hover {
   opacity: 0.92;
 }
 
