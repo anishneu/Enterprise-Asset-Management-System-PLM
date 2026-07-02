@@ -22,7 +22,10 @@ export function formatWorkflowStatus(status) {
 }
 
 export function canEdit(status) {
-  return formatWorkflowStatus(status) === INITIAL_WORKFLOW_STATUS;
+  const normalized = formatWorkflowStatus(status);
+  return (
+    normalized === INITIAL_WORKFLOW_STATUS || normalized === "Pending Approval"
+  );
 }
 
 export function canDelete(status) {

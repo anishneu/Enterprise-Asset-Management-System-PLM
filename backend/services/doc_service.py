@@ -197,7 +197,7 @@ class DocService:
 
         FormTypeService.ensure_form_type(ftype)
 
-        dstatus = normalize_status(existing.get("dstatus"))
+        dstatus = INITIAL_STATUS
         dlink = (doc.get("dlink") or "").strip() or None
         downer = (doc.get("downer") or "").strip() or None
         dapprover = (doc.get("dapprover") or "").strip() or None

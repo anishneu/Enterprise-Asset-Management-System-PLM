@@ -1,15 +1,14 @@
 import { canRevise } from "../../constants/workflowCatalog";
+import ActionIconButton from "./ActionIconButton";
 
 function DocActionsCellRenderer({ data, context }) {
   if (!data?.id || data.detailRow) return null;
 
   return (
     <div className="forms-saved-row-actions">
-      <button
-        type="button"
+      <ActionIconButton
+        label="Edit"
         className="group-edit-btn"
-        aria-label={`Edit ${data.dname || "document"}`}
-        title="Edit document"
         onClick={(event) => {
           event.stopPropagation();
           context?.onEditDoc?.(data);
@@ -27,24 +26,33 @@ function DocActionsCellRenderer({ data, context }) {
           <path d="M12 20h9" />
           <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
         </svg>
-      </button>
+      </ActionIconButton>
       {canRevise(data.dstatus) && (
-        <button
-          type="button"
-          className="forms-link-btn forms-revise-btn"
+        <ActionIconButton
+          label="Revise"
+          className="group-edit-btn"
           onClick={(event) => {
             event.stopPropagation();
             context?.onReviseDoc?.(data);
           }}
         >
-          Revise
-        </button>
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path d="M21 12a9 9 0 1 1-3.18-6.89" />
+            <polyline points="21 3 21 9 15 9" />
+          </svg>
+        </ActionIconButton>
       )}
-      <button
-        type="button"
+      <ActionIconButton
+        label="Delete"
         className="forms-delete-btn"
-        aria-label={`Delete ${data.dname || "document"}`}
-        title="Delete document"
         onClick={(event) => {
           event.stopPropagation();
           context?.onDeleteDoc?.(data);
@@ -65,7 +73,7 @@ function DocActionsCellRenderer({ data, context }) {
           <path d="M10 11v6" />
           <path d="M14 11v6" />
         </svg>
-      </button>
+      </ActionIconButton>
     </div>
   );
 }

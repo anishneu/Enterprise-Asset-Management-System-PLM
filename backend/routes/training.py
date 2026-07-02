@@ -4,6 +4,8 @@ from mysql.connector import Error as MySQLError
 from routes.auth import get_current_user
 from schemas.training import TrainingCreate, TrainingUpdate
 from services.training_service import TrainingService
+from services.audit_service import AuditService
+from constants.audit import ENTITY_TRAINING, ACTION_CREATED, ACTION_UPDATED, ACTION_DELETED
 
 router = APIRouter(
     prefix="/api/training",
@@ -52,7 +54,17 @@ def add_training_record(
 ):
     actor = _actor_name(current_user)
     print(f"Creating training record requested by '{actor}'")
-    return TrainingService.add_training(training.model_dump())
+    created = TrainingService.add_training(training.model_dump())
+    AuditService.log(
+        entity_type=ENTITY_TRAINING,
+        entity_id=created["id"],
+        action=ACTION_CREATED,
+        actor=current_user,
+        entity_label=created.get("title"),
+        revision=created.get("rev"),
+        summary="Training record created",
+    )
+    return created
 
 
 @router.put("/{training_id}")
@@ -85,7 +97,23 @@ def update_training_record(
         "fielddata": payload.get("fielddata", existing.get("fielddata")),
     }
 
-    return TrainingService.update_training(training_id, merged)
+    updated = TrainingService.update_training(training_id, merged)
+    changes = AuditService.summarize_changes(
+        existing,
+        merged,
+        ["title", "trainee", "rev", "completionstatus", "assigndate", "duedate"],
+    )
+    AuditService.log(
+        entity_type=ENTITY_TRAINING,
+        entity_id=training_id,
+        action=ACTION_UPDATED,
+        actor=current_user,
+        entity_label=existing.get("title"),
+        revision=merged.get("rev"),
+        summary="Training record updated",
+        changes=changes or None,
+    )
+    return updated
 
 
 @router.delete("/{training_id}")
@@ -100,4 +128,14 @@ def delete_training_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Training record not found")
 
-    return TrainingService.delete_training(training_id)
+    TrainingService.delete_training(training_id)
+    AuditService.log(
+        entity_type=ENTITY_TRAINING,
+        entity_id=training_id,
+        action=ACTION_DELETED,
+        actor=current_user,
+        entity_label=existing.get("title"),
+        revision=existing.get("rev"),
+        summary="Training record deleted",
+    )
+    return {"message": "Training record deleted", "id": training_id}

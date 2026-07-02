@@ -92,12 +92,19 @@ function Groups({ searchText = "" }) {
   useEffect(() => {
     setInsight({
       recordCount: filteredGroups.length,
-      selectedCount: 0,
+      selectedCount: editGroupId ? 1 : 0,
       extra: {
         Source: "Keycloak",
       },
+      auditEntity: editGroupId
+        ? {
+            type: "group",
+            id: editGroupId,
+            label: editDraft.name || "Group",
+          }
+        : null,
     });
-  }, [filteredGroups.length, setInsight]);
+  }, [filteredGroups.length, editGroupId, editDraft.name, setInsight]);
 
   const closeEditModal = () => {
     setEditGroupId(null);

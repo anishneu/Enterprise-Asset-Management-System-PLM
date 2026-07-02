@@ -4,6 +4,8 @@ from keycloak.exceptions import KeycloakPostError
 from routes.auth import get_current_user
 from schemas.group import GroupUpdate
 from services.keycloak_service import get_group, list_assignable_roles, list_groups, update_group
+from services.audit_service import AuditService
+from constants.audit import ENTITY_GROUP, ACTION_UPDATED
 
 router = APIRouter(
     prefix="/api/groups",
@@ -58,12 +60,22 @@ def edit_group(
         raise HTTPException(status_code=400, detail="No fields to update")
 
     try:
-        return update_group(
+        updated = update_group(
             group_id,
             name=payload.get("name"),
             member_ids=payload.get("memberIds"),
             roles=payload.get("roles"),
         )
+        AuditService.log(
+            entity_type=ENTITY_GROUP,
+            entity_id=group_id,
+            action=ACTION_UPDATED,
+            actor=current_user,
+            entity_label=existing.get("name"),
+            summary="Group updated",
+            changes=AuditService.summarize_changes(existing, updated, ["name", "roles"]),
+        )
+        return updated
     except KeycloakPostError as exc:
         detail = "Failed to update group"
         if exc.response_body:

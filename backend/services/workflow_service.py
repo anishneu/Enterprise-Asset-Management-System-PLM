@@ -16,6 +16,7 @@ from constants.workflow import (
     normalize_status,
 )
 from database.db import get_connection
+from services.audit_service import AuditService
 from services.keycloak_service import list_users
 from utils.display import actor_display
 from utils.revision import next_revision
@@ -72,6 +73,15 @@ class WorkflowService:
                 actor_display_value,
                 comments,
             ),
+        )
+        AuditService.log(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            action=action,
+            actor=actor,
+            revision=revision,
+            summary=comments,
+            cursor=cursor,
         )
 
     @staticmethod
@@ -489,6 +499,10 @@ class WorkflowService:
             new_revision = next_revision(current_revision)
 
             if entity_type == ENTITY_FORM:
+                fmjson = row.get("fmjson")
+                if fmjson is not None and not isinstance(fmjson, str):
+                    fmjson = json.dumps(fmjson)
+
                 cursor.execute(
                     """
                     INSERT INTO form_revisions (
@@ -500,7 +514,7 @@ class WorkflowService:
                         entity_id,
                         current_revision,
                         row.get("fmname"),
-                        row.get("fmjson"),
+                        fmjson,
                         row.get("ftype"),
                         current_status,
                         actor_display(actor),

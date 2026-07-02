@@ -21,7 +21,8 @@ def normalize_status(status: str | None) -> str:
 
 
 def can_edit(status: str | None) -> bool:
-    return normalize_status(status) == STATUS_DRAFT
+    normalized = normalize_status(status)
+    return normalized in {STATUS_DRAFT, STATUS_PENDING}
 
 
 def can_delete(status: str | None) -> bool:

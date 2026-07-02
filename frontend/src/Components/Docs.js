@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AppDataGrid from "./common/AppDataGrid";
 import DocDetailRowRenderer from "./common/DocDetailRowRenderer";
@@ -15,11 +15,15 @@ import { canSendToReview, canDelete, canEdit, canRevise, INITIAL_WORKFLOW_STATUS
 import { useAppFeedback } from "../context/AppFeedbackContext";
 import { nextRevision, revisionHelpText } from "../utils/revisionUtils";
 import { filterBySearch } from "../utils/filterBySearch";
+import DocAttachmentsPanel from "./docs/DocAttachmentsPanel";
+import DocAttachmentPreviewModal from "./docs/DocAttachmentPreviewModal";
 import {
   DocFormRenderer,
   buildFieldValues,
   buildDocDescription,
+  getDocAttachments,
   getDocFieldEntries,
+  isFieldValueFilled,
   parseFormTemplate,
   resolveDocDescription,
 } from "./docs/docFormUtils";
@@ -31,9 +35,6 @@ const emptySetupDraft = {
   documentType: "",
   formId: "",
   revision: "",
-  description: "",
-  approver: "",
-  effectiveDate: "",
 };
 
 function toDateInputValue(value) {
@@ -59,6 +60,10 @@ function Docs({ searchText = "" }) {
   const [setupDraft, setSetupDraft] = useState(emptySetupDraft);
   const [fillDraft, setFillDraft] = useState(null);
   const [fieldValues, setFieldValues] = useState({});
+  const [attachments, setAttachments] = useState([]);
+  const [customFields, setCustomFields] = useState([]);
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
+  const [attachmentPreviewOpen, setAttachmentPreviewOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
@@ -70,6 +75,7 @@ function Docs({ searchText = "" }) {
   const [deleteDialog, setDeleteDialog] = useState(null);
   const [reviseDialog, setReviseDialog] = useState(null);
   const [revising, setRevising] = useState(false);
+  const gridApiRef = useRef(null);
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
 
@@ -132,36 +138,34 @@ function Docs({ searchText = "" }) {
     fetchDocs();
   }, [fetchDocs]);
 
-  useEffect(() => {
-    if (view === "create-fill") return;
+  const allFormFields = useMemo(() => {
+    if (!fillDraft) return [];
+    return editingDocId
+      ? [...fillDraft.fields, ...customFields]
+      : fillDraft.fields;
+  }, [fillDraft, editingDocId, customFields]);
 
-    setInsight({
-      recordCount: filteredDocs.length,
-      selectedCount: selectedIds.length,
-      docDetail: expandedDoc
-        ? {
-            fielddataJson: JSON.stringify(
-              {
-                dtype: expandedDoc.dtype ?? null,
-                ftype: expandedDoc.ftype ?? null,
-                fid: expandedDoc.fid ?? expandedDoc.fielddata?.formId ?? null,
-                fmat: expandedDoc.fmat ?? null,
-                drev: expandedDoc.drev || "1",
-                ...(expandedDoc.fielddata || {}),
-              },
-              null,
-              2
-            ),
-          }
-        : null,
+  const handleSelectAttachment = useCallback((attachment) => {
+    setSelectedAttachment(attachment);
+    setAttachmentPreviewOpen(true);
+  }, []);
+
+  const closeAttachmentPreview = useCallback(() => {
+    setAttachmentPreviewOpen(false);
+  }, []);
+
+  const handleAttachmentsChange = useCallback((nextAttachments) => {
+    setAttachments(nextAttachments);
+    setSelectedAttachment((current) => {
+      if (!current) return null;
+      const stillExists = nextAttachments.some((item) => item.id === current.id);
+      if (!stillExists) {
+        setAttachmentPreviewOpen(false);
+        return null;
+      }
+      return current;
     });
-  }, [
-    filteredDocs.length,
-    selectedIds.length,
-    expandedDoc,
-    view,
-    setInsight,
-  ]);
+  }, []);
 
   const fetchDocumentForms = async () => {
     setFormsLoading(true);
@@ -205,19 +209,29 @@ function Docs({ searchText = "" }) {
     setDocumentForms([]);
   };
 
-  const cancelDocumentFlow = () => {
-    setView("list");
-    setShowSetupModal(false);
+  const cancelEditDocument = useCallback(() => {
+    setEditingDocId(null);
     setFillDraft(null);
     setFieldValues({});
+    setAttachments([]);
+    setCustomFields([]);
+    setSelectedAttachment(null);
+    setAttachmentPreviewOpen(false);
+    setSelectedIds([]);
+    gridApiRef.current?.deselectAll?.();
+  }, []);
+
+  const cancelDocumentFlow = useCallback(() => {
+    setView("list");
+    setShowSetupModal(false);
     setSetupDraft(emptySetupDraft);
     setDocumentForms([]);
-    setEditingDocId(null);
-  };
+    cancelEditDocument();
+  }, [cancelEditDocument]);
 
-  const cancelCreate = () => {
+  const cancelCreate = useCallback(() => {
     cancelDocumentFlow();
-  };
+  }, [cancelDocumentFlow]);
 
   const fetchFormById = useCallback(async (formId) => {
     const res = await apiClient.get(`/forms/${formId}`);
@@ -253,15 +267,25 @@ function Docs({ searchText = "" }) {
       const initialValues = {};
 
       template.fields.forEach((field) => {
-        initialValues[field.id] = field.type === "checkbox" ? false : "";
+        if (field.type === "checkbox") {
+          initialValues[field.id] = false;
+        } else if (field.type === "file") {
+          initialValues[field.id] = null;
+        } else {
+          initialValues[field.id] = "";
+        }
       });
+
+      setEditingDocId(null);
+      setAttachments([]);
+      setCustomFields([]);
 
       setFillDraft({
         documentType: setupDraft.documentType,
         revision: setupDraft.revision.trim() || "1",
-        description: setupDraft.description.trim(),
-        approver: setupDraft.approver.trim(),
-        effectiveDate: setupDraft.effectiveDate,
+        description: "",
+        approver: "",
+        effectiveDate: "",
         formId: selectedForm.id,
         formName: selectedForm.fmname,
         fields: template.fields,
@@ -269,6 +293,9 @@ function Docs({ searchText = "" }) {
       setFieldValues(initialValues);
       setShowSetupModal(false);
       setView("create-fill");
+      if (users.length === 0) {
+        fetchUsers();
+      }
     } catch (err) {
       console.error(err);
       feedback.error(err.response?.data?.detail || "Failed to load the selected form.");
@@ -281,15 +308,116 @@ function Docs({ searchText = "" }) {
     setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
   }, []);
 
+  const handleAddCustomField = useCallback((field, initialValue) => {
+    setCustomFields((prev) => [...prev, field]);
+    setFieldValues((prev) => ({ ...prev, [field.id]: initialValue }));
+  }, []);
+
+  const handleRemoveCustomField = useCallback((fieldId) => {
+    setCustomFields((prev) => prev.filter((field) => field.id !== fieldId));
+    setFieldValues((prev) => {
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (editingDocId && fillDraft) {
+      setInsight({
+        recordCount: filteredDocs.length,
+        selectedCount: 0,
+        status: "Editing document",
+        hideInsightPanel: false,
+        hidePageHeader: false,
+        docEditorFullBleed: true,
+        breadcrumbs: [
+          { label: "Documents", onClick: cancelEditDocument },
+          { label: fillDraft.docName || "Document" },
+          { label: "Edit" },
+        ],
+        docFormBuilder: {
+          customFields,
+          onAddField: handleAddCustomField,
+          onRemoveField: handleRemoveCustomField,
+        },
+        docDetail: null,
+      });
+      return;
+    }
+
+    if (view === "create-fill") {
+      setInsight({
+        recordCount: filteredDocs.length,
+        selectedCount: selectedIds.length,
+        hideInsightPanel: true,
+        hidePageHeader: false,
+        docEditorFullBleed: true,
+        breadcrumbs: [
+          { label: "Documents", onClick: cancelCreate },
+          { label: "New document" },
+        ],
+        docFormBuilder: null,
+        docDetail: null,
+      });
+      return;
+    }
+
+    setInsight({
+      recordCount: filteredDocs.length,
+      selectedCount: selectedIds.length,
+      hideInsightPanel: false,
+      hidePageHeader: false,
+      docEditorFullBleed: false,
+      breadcrumbs: null,
+      docFormBuilder: null,
+      docDetail: expandedDoc
+        ? {
+            fielddataJson: JSON.stringify(
+              {
+                dtype: expandedDoc.dtype ?? null,
+                ftype: expandedDoc.ftype ?? null,
+                fid: expandedDoc.fid ?? expandedDoc.fielddata?.formId ?? null,
+                fmat: expandedDoc.fmat ?? null,
+                drev: expandedDoc.drev || "1",
+                ...(expandedDoc.fielddata || {}),
+              },
+              null,
+              2
+            ),
+          }
+        : null,
+      auditEntity: expandedDoc
+        ? {
+            type: "doc",
+            id: expandedDoc.id,
+            label: expandedDoc.dname,
+            revision: expandedDoc.drev || null,
+          }
+        : null,
+    });
+  }, [
+    filteredDocs.length,
+    selectedIds.length,
+    expandedDoc,
+    editingDocId,
+    fillDraft,
+    customFields,
+    view,
+    handleAddCustomField,
+    handleRemoveCustomField,
+    cancelEditDocument,
+    cancelCreate,
+    setInsight,
+  ]);
+
   const validateFillForm = () => {
     if (!fillDraft) return false;
 
-    for (const field of fillDraft.fields) {
+    const allFields = allFormFields;
+    for (const field of allFields) {
       if (!field.required) continue;
-      const value = fieldValues[field.id];
-      if (field.type === "checkbox") {
-        if (!value) return false;
-      } else if (value === null || value === undefined || String(value).trim() === "") {
+      if (!isFieldValueFilled(field, fieldValues[field.id])) {
         return false;
       }
     }
@@ -308,7 +436,12 @@ function Docs({ searchText = "" }) {
     const manualDescription = fillDraft.description?.trim();
     const fielddata = {
       formId: fillDraft.formId,
-      values: buildFieldValues(fillDraft.fields, fieldValues),
+      values: [
+        ...buildFieldValues(fillDraft.fields, fieldValues),
+        ...(editingDocId ? buildFieldValues(customFields, fieldValues) : []),
+      ],
+      ...(editingDocId && customFields.length > 0 ? { customFields } : {}),
+      attachments,
     };
     const payload = {
       ddesc:
@@ -335,7 +468,7 @@ function Docs({ searchText = "" }) {
         await apiClient.put(`/docs/${editingDocId}`, {
           ...payload,
           dname: existing?.dname,
-          dstatus: existing?.dstatus || INITIAL_WORKFLOW_STATUS,
+          dstatus: INITIAL_WORKFLOW_STATUS,
           downer: existing?.downer,
           dlink: existing?.dlink ?? null,
         });
@@ -347,7 +480,11 @@ function Docs({ searchText = "" }) {
       }
 
       await fetchDocs();
-      cancelDocumentFlow();
+      if (editingDocId) {
+        cancelEditDocument();
+      } else {
+        cancelDocumentFlow();
+      }
       setSelectedIds([]);
       feedback.success(
         editingDocId ? "Document updated successfully." : "Document created successfully."
@@ -461,7 +598,7 @@ function Docs({ searchText = "" }) {
           setExpandedDocId(null);
         }
         if (editingDocId === doc.id) {
-          cancelDocumentFlow();
+          cancelEditDocument();
         }
         setSelectedIds((current) => current.filter((id) => id !== doc.id));
       } else {
@@ -474,7 +611,7 @@ function Docs({ searchText = "" }) {
           setExpandedDocId(null);
         }
         if (editingDocId && ids.includes(editingDocId)) {
-          cancelDocumentFlow();
+          cancelEditDocument();
         }
         setSelectedIds([]);
       }
@@ -512,18 +649,48 @@ function Docs({ searchText = "" }) {
         const template = parseFormTemplate(selectedForm.fmjson);
         const fields = template.fields || [];
         const entries = getDocFieldEntries(doc);
+        const savedCustomFields = doc.fielddata?.customFields || [];
         const initialValues = {};
 
         fields.forEach((field) => {
           const saved = entries.find((entry) => entry.id === field.id);
           if (field.type === "checkbox") {
             initialValues[field.id] = Boolean(saved?.value);
+          } else if (field.type === "file") {
+            initialValues[field.id] = saved?.value ?? null;
+          } else {
+            initialValues[field.id] = saved?.value ?? "";
+          }
+        });
+
+        const loadedCustomFields =
+          savedCustomFields.length > 0
+            ? savedCustomFields
+            : entries
+                .filter((entry) => entry.custom)
+                .map(({ id, label, type, required, options, custom }) => ({
+                  id,
+                  label,
+                  type,
+                  required,
+                  options,
+                  custom: custom ?? true,
+                }));
+
+        loadedCustomFields.forEach((field) => {
+          const saved = entries.find((entry) => entry.id === field.id);
+          if (field.type === "checkbox") {
+            initialValues[field.id] = Boolean(saved?.value);
+          } else if (field.type === "file") {
+            initialValues[field.id] = saved?.value ?? null;
           } else {
             initialValues[field.id] = saved?.value ?? "";
           }
         });
 
         setEditingDocId(doc.id);
+        setAttachments(getDocAttachments(doc));
+        setCustomFields(loadedCustomFields);
         setFillDraft({
           documentType: doc.dtype,
           revision: doc.drev || "",
@@ -537,8 +704,8 @@ function Docs({ searchText = "" }) {
           docStatus: doc.dstatus || INITIAL_WORKFLOW_STATUS,
         });
         setFieldValues(initialValues);
-        setView("create-fill");
         setExpandedDocId(null);
+        setSelectedAttachment(null);
         if (users.length === 0) {
           fetchUsers();
         }
@@ -620,11 +787,16 @@ function Docs({ searchText = "" }) {
   };
 
   const handleSelectionChanged = useCallback((event) => {
+    gridApiRef.current = event.api;
     const ids = event.api
       .getSelectedRows()
       .filter((row) => !row.detailRow)
       .map((row) => row.id);
     setSelectedIds(ids);
+  }, []);
+
+  const handleGridReady = useCallback((event) => {
+    gridApiRef.current = event.api;
   }, []);
 
   const handleToggleExpand = useCallback((docId) => {
@@ -652,8 +824,18 @@ function Docs({ searchText = "" }) {
       onEditDoc: loadDocForEdit,
       onDeleteDoc: deleteDoc,
       onReviseDoc: reviseDoc,
+      onSelectAttachment: handleSelectAttachment,
+      selectedAttachmentId: selectedAttachment?.id,
     }),
-    [expandedDocId, handleToggleExpand, loadDocForEdit, deleteDoc, reviseDoc]
+    [
+      expandedDocId,
+      handleToggleExpand,
+      loadDocForEdit,
+      deleteDoc,
+      reviseDoc,
+      handleSelectAttachment,
+      selectedAttachment?.id,
+    ]
   );
 
   const getDocRowId = useCallback((params) => {
@@ -670,7 +852,8 @@ function Docs({ searchText = "" }) {
     const row = params.node?.data ?? params.data;
     if (row?.detailRow) {
       const fieldCount = getDocFieldEntries(row.doc).length;
-      return Math.min(420, 220 + fieldCount * 28);
+      const attachmentCount = getDocAttachments(row.doc).length;
+      return Math.min(720, 260 + fieldCount * 32 + attachmentCount * 80);
     }
     return 52;
   }, []);
@@ -760,92 +943,175 @@ function Docs({ searchText = "" }) {
     []
   );
 
-  if (view === "create-fill" && fillDraft) {
+  const renderDocEditorPanels = () => {
+    if (!fillDraft) return null;
+
+    const detailsSection = (
+      <section className="doc-section">
+        <div className="doc-section-head">
+          <h4>Document details</h4>
+          <p className="forms-muted">
+            {editingDocId
+              ? "Update description and review settings. Saving returns this document to Draft."
+              : "Add a description and optional review settings."}
+          </p>
+        </div>
+
+        <label className="doc-form-field">
+          <span className="doc-form-label">Description</span>
+          <textarea
+            className="doc-form-control"
+            rows={2}
+            value={fillDraft.description}
+            onChange={(e) =>
+              setFillDraft((prev) =>
+                prev ? { ...prev, description: e.target.value } : prev
+              )
+            }
+            placeholder="Brief summary — purpose, scope, or key notes"
+          />
+        </label>
+
+        <ApproverBox
+          optional
+          compact
+          approver={fillDraft.approver}
+          effectiveDate={fillDraft.effectiveDate}
+          onApproverChange={(value) =>
+            setFillDraft((prev) => (prev ? { ...prev, approver: value } : prev))
+          }
+          onEffectiveDateChange={(value) =>
+            setFillDraft((prev) => (prev ? { ...prev, effectiveDate: value } : prev))
+          }
+          users={users}
+          usersLoading={usersLoading}
+        />
+      </section>
+    );
+
+    const formSection = (
+      <section className="doc-section">
+        <div className="doc-section-head">
+          <h4>Form responses</h4>
+          <p className="forms-muted">
+            {editingDocId
+              ? "Update responses below. Use the form builder on the right to add fields."
+              : "Complete the fields from the selected form template."}
+          </p>
+        </div>
+        <DocFormRenderer
+          fields={allFormFields}
+          values={fieldValues}
+          onChange={handleFieldChange}
+        />
+      </section>
+    );
+
+    const attachmentsSection = (
+      <DocAttachmentsPanel
+        attachments={attachments}
+        onChange={handleAttachmentsChange}
+        onSelectAttachment={handleSelectAttachment}
+        selectedAttachmentId={selectedAttachment?.id}
+        sidebar
+      />
+    );
+
     return (
-      <div className="doc-create-fill">
-        <header className="doc-create-header">
-          <div>
-            <h3>{editingDocId ? "Edit document" : "Create document"}</h3>
-            <p className="forms-muted">
-              {editingDocId
-                ? "Update the form responses below, then save your changes."
-                : "Complete the form fields below to create the document."}
-            </p>
-            <div className="doc-create-meta">
-              {fillDraft.docName && (
-                <span className="doc-create-pill">Name: {fillDraft.docName}</span>
-              )}
-              <span className="doc-create-pill">Document type: {fillDraft.documentType}</span>
-              <span className="doc-create-pill">Form: {fillDraft.formName}</span>
-              <span className="doc-create-pill">Revision: {fillDraft.revision}</span>
-              <span className="doc-create-pill">
-                Status:{" "}
-                <WorkflowStatusBadge
-                  status={fillDraft.docStatus || INITIAL_WORKFLOW_STATUS}
-                />
+      <div className="doc-workspace">
+        <main className="doc-workspace-main">{detailsSection}{formSection}</main>
+        <aside className="doc-workspace-aside">{attachmentsSection}</aside>
+      </div>
+    );
+  };
+
+  const renderDocEditorView = (mode) => {
+    if (!fillDraft) return null;
+
+    const isEdit = mode === "edit";
+    const title = isEdit ? fillDraft.docName || "Document" : "New document";
+    const subtitle = isEdit
+      ? "Edit metadata, form responses, and attachments."
+      : "Complete the form and attach supporting files.";
+
+    return (
+      <div className="doc-editor">
+        <header className="doc-editor-chrome">
+          <div className="doc-editor-chrome-main">
+            <div className="doc-editor-chrome-titles">
+              <h3 className="doc-editor-title">{title}</h3>
+              <p className="forms-muted doc-editor-subtitle">{subtitle}</p>
+            </div>
+            <div className="doc-editor-meta">
+              <span className="doc-meta-tag">{fillDraft.documentType}</span>
+              <span className="doc-meta-tag">{fillDraft.formName}</span>
+              <span className="doc-meta-tag">Rev {fillDraft.revision}</span>
+              <span className="doc-meta-tag">
+                <WorkflowStatusBadge status={INITIAL_WORKFLOW_STATUS} />
               </span>
-              {fillDraft.description && (
-                <span className="doc-create-pill">Description: {fillDraft.description}</span>
-              )}
             </div>
           </div>
-          <div className="doc-create-actions">
-            <button type="button" className="parts-btn" onClick={cancelCreate} disabled={saving}>
+          <div className="doc-editor-chrome-actions">
+            <button
+              type="button"
+              className="parts-btn"
+              onClick={isEdit ? cancelEditDocument : cancelCreate}
+              disabled={saving || formDetailLoading}
+            >
               Cancel
             </button>
             <button
               type="button"
               className="parts-btn primary"
               onClick={createDocument}
-              disabled={saving}
+              disabled={saving || formDetailLoading}
             >
               {saving
-                ? editingDocId
+                ? isEdit
                   ? "Updating..."
                   : "Creating..."
-                : editingDocId
+                : isEdit
                   ? "Update"
                   : "Create"}
             </button>
           </div>
         </header>
 
-        <div className="doc-create-body">
-          {editingDocId && (
-            <ApproverBox
-              optional
-              compact
-              approver={fillDraft.approver}
-              effectiveDate={fillDraft.effectiveDate}
-              onApproverChange={(value) =>
-                setFillDraft((prev) => (prev ? { ...prev, approver: value } : prev))
-              }
-              onEffectiveDateChange={(value) =>
-                setFillDraft((prev) => (prev ? { ...prev, effectiveDate: value } : prev))
-              }
-              users={users}
-              usersLoading={usersLoading}
-            />
-          )}
-          <DocFormRenderer
-            fields={fillDraft.fields}
-            values={fieldValues}
-            onChange={handleFieldChange}
-          />
-        </div>
+        {formDetailLoading ? (
+          <p className="forms-muted doc-editor-loading">Loading document...</p>
+        ) : (
+          renderDocEditorPanels()
+        )}
+
+        <DocAttachmentPreviewModal
+          open={attachmentPreviewOpen}
+          file={selectedAttachment}
+          onClose={closeAttachmentPreview}
+        />
       </div>
     );
+  };
+
+  if (view === "create-fill" && fillDraft && !editingDocId) {
+    return renderDocEditorView("create");
   }
 
   return (
-    <div className="grid-page">
-      <p className="forms-muted forms-revision-hint docs-revision-hint">{revisionHelpText()}</p>
+    <div className={`grid-page${editingDocId ? " grid-page--editing" : ""}`}>
+      {!editingDocId && (
+        <p className="forms-muted forms-revision-hint docs-revision-hint">{revisionHelpText()}</p>
+      )}
+
+      {editingDocId && fillDraft && renderDocEditorView("edit")}
+
+      {!editingDocId && (
       <AppDataGrid
         rowData={gridRows}
         columnDefs={columnDefs}
         context={gridContext}
         rowSelection={rowSelection}
         onSelectionChanged={handleSelectionChanged}
+        onGridReady={handleGridReady}
         onRowClicked={handleRowClicked}
         getRowClass={getRowClass}
         getRowId={getDocRowId}
@@ -882,6 +1148,7 @@ function Docs({ searchText = "" }) {
           </>
         }
       />
+      )}
 
       {showSetupModal && (
         <div className="modal-overlay">
@@ -947,34 +1214,6 @@ function Docs({ searchText = "" }) {
                 ))}
               </select>
             </label>
-
-            <label className="doc-form-field">
-              <span className="doc-form-label">Description</span>
-              <textarea
-                className="doc-form-control"
-                placeholder="Brief summary — purpose, scope, or key notes"
-                rows={2}
-                value={setupDraft.description}
-                onChange={(e) =>
-                  setSetupDraft((prev) => ({ ...prev, description: e.target.value }))
-                }
-              />
-            </label>
-
-            <ApproverBox
-              optional
-              compact
-              approver={setupDraft.approver}
-              effectiveDate={setupDraft.effectiveDate}
-              onApproverChange={(value) =>
-                setSetupDraft((prev) => ({ ...prev, approver: value }))
-              }
-              onEffectiveDateChange={(value) =>
-                setSetupDraft((prev) => ({ ...prev, effectiveDate: value }))
-              }
-              users={users}
-              usersLoading={usersLoading}
-            />
 
             <div className="modal-actions">
               <button
@@ -1091,6 +1330,12 @@ function Docs({ searchText = "" }) {
           </div>
         </div>
       )}
+
+      <DocAttachmentPreviewModal
+        open={attachmentPreviewOpen}
+        file={selectedAttachment}
+        onClose={closeAttachmentPreview}
+      />
     </div>
   );
 }

@@ -318,6 +318,14 @@ function Training({ searchText = "" }) {
         : null,
       onTrainingStatusChange: updateCompletionStatus,
       trainingStatusSaving: statusSaving,
+      auditEntity: activeTraining
+        ? {
+            type: "training",
+            id: activeTraining.id,
+            label: activeTraining.title,
+            revision: activeTraining.rev || null,
+          }
+        : null,
     });
   }, [
     filteredTraining.length,

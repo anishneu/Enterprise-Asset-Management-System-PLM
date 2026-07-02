@@ -1,88 +1,10 @@
 import { COMPLETION_STATUSES } from "../../constants/trainingCatalog";
-
-const SECTION_META = {
-  dashboard: {
-    title: "Dashboard",
-    status: "Live workspace metrics",
-    references: ["Workflow overview", "Training & approvals"],
-    properties: [
-      { label: "Workspace", value: "TalonVault" },
-      { label: "Charts", value: "Workflow, training, inventory" },
-    ],
-  },
-  parts: {
-    title: "Parts overview",
-    status: "Inventory synced",
-    references: ["ISO 9001 — Document control", "Internal part numbering SOP"],
-    properties: [
-      { label: "Data source", value: "MySQL / parts" },
-      { label: "Revision tracking", value: "Enabled" },
-    ],
-  },
-  docs: {
-    title: "Documentation",
-    status: "Controlled docs",
-    references: ["Quality manual §4.2", "Form linkage registry"],
-    properties: [
-      { label: "Auth", value: "Keycloak required" },
-      { label: "Linked forms", value: "By document type" },
-    ],
-  },
-  users: {
-    title: "User directory",
-    status: "Keycloak managed",
-    references: ["Realm: amsrealm", "Admin API integration"],
-    properties: [
-      { label: "Identity provider", value: "Keycloak" },
-      { label: "Session", value: "Secure / SSO" },
-    ],
-  },
-  groups: {
-    title: "Group management",
-    status: "Keycloak synced",
-    references: ["Role-based access", "Permission matrix"],
-    properties: [
-      { label: "Source", value: "Keycloak groups API" },
-      { label: "Permissions", value: "Hardcoded role map" },
-    ],
-  },
-  training: {
-    title: "Training records",
-    status: "Assignments active",
-    references: ["Training matrix (draft)", "Competency checklist"],
-    properties: [
-      { label: "Source", value: "traintab / Keycloak users" },
-      { label: "Assignments", value: "Document-linked" },
-    ],
-  },
-  approvals: {
-    title: "Approvals",
-    status: "Workflow queue active",
-    references: ["Pending review queue", "Submission history"],
-    properties: [
-      { label: "Views", value: "Pending, mine, approved, rejected" },
-      { label: "Engine", value: "Forms & documents" },
-    ],
-  },
-  forms: {
-    title: "Form builder",
-    status: "Draft templates",
-    references: ["Drag-and-drop field library", "JSON schema export"],
-    properties: [
-      { label: "Storage", value: "MySQL / forms" },
-      { label: "Preview", value: "Available" },
-    ],
-  },
-  asset: {
-    title: "Assets",
-    status: "Reference data",
-    references: ["Asset register", "Linked documentation"],
-    properties: [
-      { label: "Source", value: "Asset API" },
-      { label: "Updates", value: "Manual entry" },
-    ],
-  },
-};
+import DocFormBuilderPanel from "../docs/DocFormBuilderPanel";
+import AuditHistoryPanel from "../common/AuditHistoryPanel";
+import { ENTITY_LABELS } from "../../constants/auditEntityTypes";
+import { SECTION_AUDIT_ENTITY, sectionAuditTitle } from "../../constants/sectionAudit";
+import CourseInsightDetail from "./CourseInsightDetail";
+import { usePageInsight } from "./PageInsightContext";
 
 function formatInsightDateTime(value) {
   if (!value) return "—";
@@ -92,13 +14,7 @@ function formatInsightDateTime(value) {
 }
 
 function UserInsightDetail({ userDetail }) {
-  if (!userDetail) {
-    return (
-      <p className="page-insight-empty">
-        Click a user to view account details.
-      </p>
-    );
-  }
+  if (!userDetail) return null;
 
   return (
     <>
@@ -126,13 +42,7 @@ function UserInsightDetail({ userDetail }) {
 }
 
 function TrainingInsightDetail({ trainingDetail, onStatusChange, statusSaving }) {
-  if (!trainingDetail) {
-    return (
-      <p className="page-insight-empty">
-        Click a training form to view details and update completion status.
-      </p>
-    );
-  }
+  if (!trainingDetail) return null;
 
   return (
     <>
@@ -163,9 +73,7 @@ function TrainingInsightDetail({ trainingDetail, onStatusChange, statusSaving })
           <select
             className="page-insight-control"
             value={trainingDetail.completionstatus || "Pending"}
-            onChange={(event) =>
-              onStatusChange?.(trainingDetail.id, event.target.value)
-            }
+            onChange={(event) => onStatusChange?.(trainingDetail.id, event.target.value)}
             disabled={statusSaving}
           >
             {COMPLETION_STATUSES.map((status) => (
@@ -181,12 +89,10 @@ function TrainingInsightDetail({ trainingDetail, onStatusChange, statusSaving })
 }
 
 function DocInsightDetail({ docDetail }) {
-  if (!docDetail) {
-    return (
-      <p className="page-insight-empty">
-        Click a document name to expand details and view JSON here.
-      </p>
-    );
+  if (!docDetail) return null;
+
+  if (docDetail.hint) {
+    return <p className="page-insight-empty">{docDetail.hint}</p>;
   }
 
   if (!docDetail.fielddataJson) {
@@ -198,98 +104,147 @@ function DocInsightDetail({ docDetail }) {
   );
 }
 
-function SectionInsightPanel({ section, insight = {} }) {
-  const meta = SECTION_META[section] || {
-    title: "Section",
-    status: "Active",
-    references: [],
-    properties: [],
-  };
+function SectionAuditBlock({ section, entityType, entityId, title }) {
+  return (
+    <div className="page-insight-block page-insight-block--audit">
+      <div className="page-insight-block-head">
+        <h4>{title}</h4>
+      </div>
+      <AuditHistoryPanel
+        entityType={entityType || undefined}
+        entityId={entityId ?? undefined}
+        compact
+        limit={entityId != null ? 12 : 15}
+        emptyMessage="No changes recorded yet."
+      />
+    </div>
+  );
+}
 
-  const recordCount =
-    insight.recordCount !== undefined ? insight.recordCount : "—";
-  const selectedCount =
-    insight.selectedCount !== undefined ? insight.selectedCount : 0;
+function SectionInsightPanel({ section, insight = {} }) {
+  const { clearDetail } = usePageInsight();
   const isDocsSection = section === "docs";
   const isTrainingSection = section === "training";
   const isUsersSection = section === "users";
+  const sectionEntityType = SECTION_AUDIT_ENTITY[section] || null;
+
+  const hasCourseDetail = Boolean(insight.courseDetail);
+  const hasDocFormBuilder = isDocsSection && insight.docFormBuilder;
+  const hasDocDetail = isDocsSection && insight.docDetail && !hasDocFormBuilder;
+  const hasTrainingDetail = isTrainingSection && insight.trainingDetail;
+  const hasUserDetail = isUsersSection && insight.userDetail;
+  const hasEntityAudit = insight.auditEntity?.type && insight.auditEntity.id != null;
+
+  const showItemDetail =
+    hasCourseDetail || hasDocFormBuilder || hasDocDetail || hasTrainingDetail || hasUserDetail;
+
+  const panelTitle = (() => {
+    if (hasDocFormBuilder) return "Form builder";
+    if (hasCourseDetail) return "Course details";
+    if (hasDocDetail && insight.docDetail?.fielddataJson) return "JSON";
+    if (hasDocDetail && insight.docDetail?.editingDocName) return insight.docDetail.editingDocName;
+    if (hasTrainingDetail) return "Training record";
+    if (hasUserDetail) return "User account";
+    if (hasEntityAudit) return "Item history";
+    return sectionAuditTitle(section);
+  })();
 
   return (
-    <aside className="page-insight" aria-label="Section details">
+    <aside
+      className={`page-insight${insight.docFormBuilder ? " page-insight--form-builder" : ""}`}
+      aria-label="Section details"
+    >
       <div className="page-insight-header">
-        <h3>
-          {isDocsSection && insight.docDetail
-            ? "JSON"
-            : isTrainingSection && insight.trainingDetail
-              ? "Training record"
-              : isUsersSection && insight.userDetail
-                ? "User account"
-                : meta.title}
-        </h3>
-        <span className="page-insight-status">{insight.status || meta.status}</span>
+        <h3>{panelTitle}</h3>
+        {showItemDetail && (
+          <button
+            type="button"
+            className="page-insight-back-btn"
+            onClick={clearDetail}
+          >
+            Back to log
+          </button>
+        )}
       </div>
 
-      {isDocsSection ? (
-        <div className="page-insight-block">
-          <DocInsightDetail docDetail={insight.docDetail} />
-        </div>
-      ) : isTrainingSection ? (
-        <div className="page-insight-block">
-          <TrainingInsightDetail
-            trainingDetail={insight.trainingDetail}
-            onStatusChange={insight.onTrainingStatusChange}
-            statusSaving={insight.trainingStatusSaving}
-          />
-        </div>
-      ) : isUsersSection ? (
-        <div className="page-insight-block">
-          <UserInsightDetail userDetail={insight.userDetail} />
+      <div className="page-insight-scroll">
+      {hasDocFormBuilder ? (
+        <div className="page-insight-block page-insight-block--form-builder">
+          <DocFormBuilderPanel compact {...insight.docFormBuilder} />
         </div>
       ) : (
         <>
-          <div className="page-insight-block">
-            <h4>Live status</h4>
-            <dl className="page-insight-list">
-              <div>
-                <dt>Records shown</dt>
-                <dd>{recordCount}</dd>
-              </div>
-              <div>
-                <dt>Selected rows</dt>
-                <dd>{selectedCount}</dd>
-              </div>
-              {insight.extra &&
-                Object.entries(insight.extra).map(([key, value]) => (
-                  <div key={key}>
-                    <dt>{key}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
-            </dl>
-          </div>
+          {hasCourseDetail && (
+            <div className="page-insight-block">
+              <CourseInsightDetail
+                course={insight.courseDetail}
+                users={insight.courseUsers || []}
+                onEdit={insight.onCourseEdit}
+                onRelease={insight.onCourseRelease}
+                onRevise={insight.onCourseRevise}
+              />
+            </div>
+          )}
 
-          <div className="page-insight-block">
-            <h4>Properties</h4>
-            <dl className="page-insight-list">
-              {meta.properties.map((item) => (
-                <div key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+          {hasDocDetail && (
+            <div className="page-insight-block">
+              <DocInsightDetail docDetail={insight.docDetail} />
+            </div>
+          )}
 
-          <div className="page-insight-block">
-            <h4>References</h4>
-            <ul className="page-insight-references">
-              {meta.references.map((ref) => (
-                <li key={ref}>{ref}</li>
-              ))}
-            </ul>
-          </div>
+          {hasTrainingDetail && (
+            <div className="page-insight-block">
+              <TrainingInsightDetail
+                trainingDetail={insight.trainingDetail}
+                onStatusChange={insight.onTrainingStatusChange}
+                statusSaving={insight.trainingStatusSaving}
+              />
+            </div>
+          )}
+
+          {hasUserDetail && (
+            <div className="page-insight-block">
+              <UserInsightDetail userDetail={insight.userDetail} />
+            </div>
+          )}
+
+          {hasEntityAudit && !hasCourseDetail && (
+            <div className="page-insight-block page-insight-block--nested">
+              <p className="page-insight-audit-target">
+                {ENTITY_LABELS[insight.auditEntity.type] || insight.auditEntity.type}
+                {insight.auditEntity.label ? ` · ${insight.auditEntity.label}` : ""}
+                {insight.auditEntity.revision ? ` (rev ${insight.auditEntity.revision})` : ""}
+              </p>
+            </div>
+          )}
+
+          <SectionAuditBlock
+            section={section}
+            entityType={
+              hasEntityAudit && !hasCourseDetail
+                ? insight.auditEntity.type
+                : showItemDetail && hasCourseDetail
+                  ? "training"
+                  : sectionEntityType
+            }
+            entityId={
+              hasEntityAudit && !hasCourseDetail
+                ? insight.auditEntity.id
+                : showItemDetail && hasCourseDetail
+                  ? insight.courseDetail.id
+                  : null
+            }
+            title={
+              showItemDetail
+                ? hasCourseDetail
+                  ? "Course activity"
+                  : "Item activity"
+                : sectionAuditTitle(section)
+            }
+          />
         </>
       )}
+      </div>
     </aside>
   );
 }

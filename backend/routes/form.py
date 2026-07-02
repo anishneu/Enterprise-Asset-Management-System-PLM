@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 
 from services.form_service import FormService
 from services.workflow_service import WorkflowService
+from services.audit_service import AuditService
 from constants.workflow import ENTITY_FORM
+from constants.audit import ACTION_CREATED, ACTION_UPDATED, ACTION_DELETED
 from routes.auth import get_current_user
 from utils.display import actor_display
 
@@ -67,11 +69,32 @@ def add_forms(form: dict, current_user: dict = Depends(get_current_user)):
 
 
 @router.put("/{form_id}")
-def update_form(form_id: int, form: dict):
+def update_form(form_id: int, form: dict, current_user: dict = Depends(get_current_user)):
+    existing = FormService.get_form(form_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Form not found")
+
     try:
-        return FormService.update_form(form_id, form)
+        updated = FormService.update_form(form_id, form)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    changes = AuditService.summarize_changes(
+        existing,
+        updated,
+        ["fmname", "ftype", "fmrev", "fmstatus", "fmapprover", "fmeffective"],
+    )
+    AuditService.log(
+        entity_type=ENTITY_FORM,
+        entity_id=form_id,
+        action=ACTION_UPDATED,
+        actor=current_user,
+        entity_label=existing.get("fmname"),
+        revision=updated.get("fmrev"),
+        summary="Form updated",
+        changes=changes or None,
+    )
+    return updated
 
 
 @router.post("/{form_id}/submit-review")
@@ -119,8 +142,23 @@ def revise_form(form_id: int, current_user: dict = Depends(get_current_user)):
 
 
 @router.delete("/{form_id}")
-def delete_form(form_id: int):
+def delete_form(form_id: int, current_user: dict = Depends(get_current_user)):
+    existing = FormService.get_form(form_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Form not found")
+
     try:
-        return FormService.delete_form(form_id)
+        result = FormService.delete_form(form_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    AuditService.log(
+        entity_type=ENTITY_FORM,
+        entity_id=form_id,
+        action=ACTION_DELETED,
+        actor=current_user,
+        entity_label=existing.get("fmname"),
+        revision=existing.get("fmrev"),
+        summary="Form deleted",
+    )
+    return result

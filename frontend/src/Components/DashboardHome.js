@@ -15,6 +15,7 @@ import {
 
 import apiClient from "../api/client";
 import keycloak from "../keycloak";
+import DashboardAuditPanel from "./dashboard/DashboardAuditPanel";
 import {
   buildWorkflowCompareData,
   countOverdueTraining,
@@ -118,7 +119,7 @@ function DashboardHome() {
         apiClient.get("/parts"),
         apiClient.get("/docs"),
         apiClient.get("/forms/"),
-        apiClient.get("/training"),
+        apiClient.get("/training-plm/records"),
         apiClient.get("/users"),
         apiClient.get("/approvals", { params: { view: "pending" } }),
         apiClient.get("/approvals", { params: { view: "my" } }),
@@ -411,6 +412,14 @@ function DashboardHome() {
           <p className="dashboard-kpi-meta">Past due date</p>
         </article>
         </div>
+      </div>
+
+      <div className="dashboard-section">
+        <div className="dashboard-section-heading">
+          <h4 className="dashboard-section-title">Recent activity</h4>
+        </div>
+
+        <DashboardAuditPanel />
       </div>
 
       <div className="dashboard-section">

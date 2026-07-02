@@ -85,6 +85,11 @@ export function AppFeedbackProvider({ children }) {
     [show]
   );
 
+  const warning = useCallback(
+    (message, title = "Warning") => show({ title, message, variant: "warning" }),
+    [show]
+  );
+
   const workflowBlocked = useCallback(
     (options) => {
       const payload = buildWorkflowBlockedMessage(options);
@@ -94,8 +99,8 @@ export function AppFeedbackProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ show, info, success, error, workflowBlocked, close }),
-    [show, info, success, error, workflowBlocked, close]
+    () => ({ show, info, success, error, warning, workflowBlocked, close }),
+    [show, info, success, error, warning, workflowBlocked, close]
   );
 
   return (
