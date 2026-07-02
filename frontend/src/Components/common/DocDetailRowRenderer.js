@@ -1,7 +1,11 @@
 import WorkflowStatusBadge from "./WorkflowStatusBadge";
+import DocAttachmentTile from "../docs/DocAttachmentTile";
+import DocFilePreview from "../docs/DocFilePreview";
+import { isFileFieldValue, normalizeLegacyFileValue } from "../docs/docFileUtils";
 import {
   formatFieldValue,
   formatWorkflowDate,
+  getDocAttachments,
   getDocFieldEntries,
   resolveDocDescription,
 } from "../docs/docFormUtils";
@@ -9,6 +13,14 @@ import {
 function renderFieldValue(field) {
   const value = field?.value;
   if (value === null || value === undefined || value === "") return "—";
+
+  if (field?.type === "file") {
+    const fileValue = isFileFieldValue(value)
+      ? value
+      : normalizeLegacyFileValue(value);
+    if (!fileValue) return "—";
+    return <DocFilePreview file={fileValue} compact />;
+  }
 
   const text = String(value);
   const isLink =
@@ -32,6 +44,7 @@ function DocDetailRowRenderer(props) {
   if (!doc) return null;
 
   const fields = getDocFieldEntries(doc);
+  const attachments = getDocAttachments(doc);
 
   return (
     <div className="doc-row-detail">
@@ -106,6 +119,27 @@ function DocDetailRowRenderer(props) {
           </dl>
         ) : (
           <p className="doc-row-detail-empty">No form responses recorded.</p>
+        )}
+
+        {attachments.length > 0 && (
+          <>
+            <h4 className="doc-row-detail-heading doc-row-detail-subheading">
+              Attachments
+            </h4>
+            <div className="doc-row-detail-attachments">
+              {attachments.map((attachment) => (
+                <DocAttachmentTile
+                  key={attachment.id || attachment.fileName}
+                  file={attachment}
+                  readOnly
+                  selected={
+                    props.context?.selectedAttachmentId === attachment.id
+                  }
+                  onSelect={props.context?.onSelectAttachment}
+                />
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>

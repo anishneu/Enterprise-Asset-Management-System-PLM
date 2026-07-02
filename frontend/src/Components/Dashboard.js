@@ -21,9 +21,10 @@ import Groups from "./Groups";
 
 import Docs from "./Docs";
 
-import Training from "./Training";
-
+import TrainingCourses from "./TrainingCourses";
 import TrainingCurriculum from "./TrainingCurriculum";
+import TrainingRecords from "./TrainingRecords";
+import QualificationMatrix from "./QualificationMatrix";
 
 import Approvals from "./Approvals";
 
@@ -42,6 +43,8 @@ import SidebarItem from "./dashboard/SidebarItem";
 import SidebarNavGroup from "./dashboard/SidebarNavGroup";
 
 import SectionInsightPanel from "./dashboard/SectionInsightPanel";
+
+import PageBreadcrumbs from "./common/PageBreadcrumbs";
 
 import { PageInsightContext } from "./dashboard/PageInsightContext";
 
@@ -77,9 +80,13 @@ const SECTION_LABELS = {
 
   "forms-saved": "Saved Forms",
 
+  "training-courses": "Courses",
+
   "training-records": "Records",
 
   "training-curriculum": "Curriculum",
+
+  "training-qualification": "Qualification Matrix",
 
   "approvals-pending": "Pending Requests",
 
@@ -113,9 +120,13 @@ const SECTION_DESCRIPTIONS = {
 
   "forms-saved": "Review saved form templates and JSON definitions.",
 
-  "training-records": "Track training assignments and due dates.",
+  "training-courses": "Define master training courses linked to controlled documents and revisions.",
 
-  "training-curriculum": "Plan training paths and competency requirements.",
+  "training-records": "Track who completed each course, scores, trainers, and completion dates.",
+
+  "training-curriculum": "Group released courses into curricula and assign them to trainees.",
+
+  "training-qualification": "View trainee qualification status derived from training records.",
 
   "approvals-pending": "Review approval requests awaiting your action.",
 
@@ -143,13 +154,7 @@ const SCROLLABLE_MENUS = new Set([
 
   "docs",
 
-  "forms-builder",
-
-  "forms-saved",
-
-  "training-records",
-
-  "training-curriculum",
+  "training-qualification",
 
   "settings",
 
@@ -163,7 +168,12 @@ const ASSETS_MENUS = new Set(["parts", "docs"]);
 
 const FORMS_MENUS = new Set(["forms-builder", "forms-saved"]);
 
-const TRAINING_MENUS = new Set(["training-records", "training-curriculum"]);
+const TRAINING_MENUS = new Set([
+  "training-courses",
+  "training-records",
+  "training-curriculum",
+  "training-qualification",
+]);
 
 const APPROVALS_MENUS = new Set([
   "approvals-pending",
@@ -344,18 +354,48 @@ function Dashboard() {
 
 
 
+  const clearPageDetail = useCallback(() => {
+    setPageInsight((prev) => {
+      if (
+        !prev.courseDetail &&
+        !prev.auditEntity &&
+        !prev.docDetail &&
+        !prev.userDetail &&
+        !prev.trainingDetail &&
+        !prev.docFormBuilder
+      ) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next.courseDetail;
+      delete next.auditEntity;
+      delete next.docDetail;
+      delete next.userDetail;
+      delete next.trainingDetail;
+      delete next.docFormBuilder;
+      next.selectedCount = 0;
+      return next;
+    });
+  }, []);
+
+  const handlePageBodyPointerDown = useCallback(
+    (event) => {
+      if (pageInsight.hideInsightPanel) return;
+      if (event.target.closest(".page-insight")) return;
+      if (event.target.closest(".app-data-grid-wrap") || event.target.closest(".ag-root")) return;
+      if (event.target.closest(".modal-overlay")) return;
+      clearPageDetail();
+    },
+    [pageInsight.hideInsightPanel, clearPageDetail]
+  );
+
   const insightContextValue = useMemo(
-
     () => ({
-
       insight: pageInsight,
-
       setInsight: setPageInsight,
-
+      clearDetail: clearPageDetail,
     }),
-
-    [pageInsight]
-
+    [pageInsight, clearPageDetail]
   );
 
 
@@ -656,15 +696,15 @@ function Dashboard() {
 
               <SidebarItem
 
-                label="Records"
+                label="Courses"
 
                 showIcon={false}
 
-                active={activeMenu === "training-records"}
+                active={activeMenu === "training-courses"}
 
                 collapsed={!sidebarOpen}
 
-                onClick={() => handleMenuSelect("training-records")}
+                onClick={() => handleMenuSelect("training-courses")}
 
               />
 
@@ -679,6 +719,34 @@ function Dashboard() {
                 collapsed={!sidebarOpen}
 
                 onClick={() => handleMenuSelect("training-curriculum")}
+
+              />
+
+              <SidebarItem
+
+                label="Records"
+
+                showIcon={false}
+
+                active={activeMenu === "training-records"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("training-records")}
+
+              />
+
+              <SidebarItem
+
+                label="Qualification Matrix"
+
+                showIcon={false}
+
+                active={activeMenu === "training-qualification"}
+
+                collapsed={!sidebarOpen}
+
+                onClick={() => handleMenuSelect("training-qualification")}
 
               />
 
@@ -832,7 +900,9 @@ function Dashboard() {
 
 
 
-      <main className="center">
+      <main className={`center${activeMenu === "forms-builder" || pageInsight.formsEditorActive ? " center--builder" : ""}${
+        pageInsight.docEditorFullBleed ? " center--doc-editor" : ""
+      }`}>
 
         <div
 
@@ -842,27 +912,41 @@ function Dashboard() {
 
               ? " page-content--solo"
 
-              : ""
+              : pageInsight.hideInsightPanel
 
+                ? " page-content--solo page-content--full"
+
+                : ""
+
+          }${activeMenu === "forms-builder" || pageInsight.formsEditorActive ? " page-content--builder" : ""}${
+            pageInsight.docEditorFullBleed ? " page-content--doc-editor" : ""
           }`}
 
         >
 
+        {!pageInsight.hidePageHeader && (
         <div className="page-header">
 
           <div>
 
-            <h2 className="page-title">{activeSectionLabel}</h2>
+            {pageInsight.breadcrumbs?.length ? (
+              <PageBreadcrumbs items={pageInsight.breadcrumbs} />
+            ) : (
+              <>
+                <h2 className="page-title">{activeSectionLabel}</h2>
 
-            <p className="page-subtitle">
+                <p className="page-subtitle">
 
-              {SECTION_DESCRIPTIONS[activeMenu]}
+                  {SECTION_DESCRIPTIONS[activeMenu]}
 
-            </p>
+                </p>
+              </>
+            )}
 
           </div>
 
         </div>
+        )}
 
 
 
@@ -886,14 +970,25 @@ function Dashboard() {
 
         <PageInsightContext.Provider value={insightContextValue}>
 
-          <div className="page-body">
+          <div className="page-body" onPointerDown={handlePageBodyPointerDown}>
 
             <div
 
               className={`page-main${
-
-                SCROLLABLE_MENUS.has(activeMenu) ? " page-main--scroll" : ""
-
+                activeMenu === "forms-builder" ||
+                activeMenu === "forms-saved" ||
+                pageInsight.formsEditorActive ||
+                (TRAINING_MENUS.has(activeMenu) &&
+                  activeMenu !== "training-curriculum")
+                  ? " page-main--fill"
+                  : ""
+              }${
+                pageInsight.docEditorFullBleed ? " page-main--fill" : ""
+              }${
+                SCROLLABLE_MENUS.has(activeMenu) ||
+                activeMenu === "training-curriculum"
+                  ? " page-main--scroll"
+                  : ""
               }${activeMenu === "dashboard" ? " page-main--dashboard" : ""}`}
 
             >
@@ -916,14 +1011,20 @@ function Dashboard() {
 
               )}
 
+              {activeMenu === "training-courses" && (
+                <TrainingCourses searchText={contentSearch} />
+              )}
+
               {activeMenu === "training-records" && (
-
-                <Training searchText={contentSearch} />
-
+                <TrainingRecords searchText={contentSearch} />
               )}
 
               {activeMenu === "training-curriculum" && (
                 <TrainingCurriculum searchText={contentSearch} />
+              )}
+
+              {activeMenu === "training-qualification" && (
+                <QualificationMatrix searchText={contentSearch} />
               )}
 
               {activeMenu === "approvals-pending" && (
@@ -954,10 +1055,10 @@ function Dashboard() {
 
 
 
-            {activeMenu !== "dashboard" && !ACCOUNT_MENUS.has(activeMenu) && (
-
-              <SectionInsightPanel section={insightSection} insight={pageInsight} />
-
+            {activeMenu !== "dashboard" && !ACCOUNT_MENUS.has(activeMenu) && !pageInsight.hideInsightPanel && (
+              <div className="page-insight-shell" onPointerDown={(e) => e.stopPropagation()}>
+                <SectionInsightPanel section={insightSection} insight={pageInsight} />
+              </div>
             )}
 
           </div>

@@ -1,0 +1,271 @@
+/**
+ * Shared scrollbar styling for every scrollable surface in the app.
+ * Add the .app-scrollbar class to new scroll containers, or extend the
+ * selector lists below when introducing a new layout region.
+ */
+
+/* —— Light surfaces (Firefox) —— */
+
+.app-scrollbar,
+.west,
+.page-main--scroll,
+.page-insight-scroll,
+.global-search-results,
+.parts-details,
+.grid-table-toolbar,
+.doc-workspace-main,
+.doc-workspace-aside,
+.doc-file-preview-text,
+.doc-attachment-modal-body,
+.page-insight-block--form-builder,
+.page-insight-json,
+.form-type-combobox-list,
+.trainee-combobox-list,
+.tag-multiselect-dropdown,
+.forms-library-list,
+.forms-canvas-scroll,
+.forms-properties-body,
+.forms-saved-table-wrap,
+.submit-review-body,
+.forms-json-body,
+.forms-json-content,
+.training-plm-modal--scroll,
+.training-plm-modal--record .training-modal-body,
+.training-assignments-table-wrap,
+.training-curriculum-designer,
+.training-courses-detail,
+.audit-list,
+.dashboard-audit-card .audit-list--compact,
+.app-data-grid .ag-body-vertical-scroll-viewport,
+.app-data-grid .ag-body-horizontal-scroll-viewport,
+.app-data-grid .ag-center-cols-viewport,
+.app-data-grid .ag-body-viewport,
+.k-grid .k-grid-content {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tv-scrollbar-thumb) var(--tv-scrollbar-track);
+}
+
+.west {
+  scrollbar-color: var(--tv-scrollbar-thumb-inverse) var(--tv-scrollbar-track-inverse);
+}
+
+/* Compact scrollbars for dropdowns and narrow panels */
+
+.global-search-results,
+.form-type-combobox-list,
+.trainee-combobox-list,
+.tag-multiselect-dropdown,
+.page-insight-scroll {
+  scrollbar-color: var(--tv-scrollbar-thumb) var(--tv-scrollbar-track);
+}
+
+/* —— Light surfaces (WebKit / Chromium) —— */
+
+.app-scrollbar::-webkit-scrollbar,
+.west::-webkit-scrollbar,
+.page-main--scroll::-webkit-scrollbar,
+.page-insight-scroll::-webkit-scrollbar,
+.global-search-results::-webkit-scrollbar,
+.parts-details::-webkit-scrollbar,
+.grid-table-toolbar::-webkit-scrollbar,
+.doc-workspace-main::-webkit-scrollbar,
+.doc-workspace-aside::-webkit-scrollbar,
+.doc-file-preview-text::-webkit-scrollbar,
+.doc-attachment-modal-body::-webkit-scrollbar,
+.page-insight-block--form-builder::-webkit-scrollbar,
+.page-insight-json::-webkit-scrollbar,
+.form-type-combobox-list::-webkit-scrollbar,
+.trainee-combobox-list::-webkit-scrollbar,
+.tag-multiselect-dropdown::-webkit-scrollbar,
+.forms-library-list::-webkit-scrollbar,
+.forms-canvas-scroll::-webkit-scrollbar,
+.forms-properties-body::-webkit-scrollbar,
+.forms-saved-table-wrap::-webkit-scrollbar,
+.submit-review-body::-webkit-scrollbar,
+.forms-json-body::-webkit-scrollbar,
+.forms-json-content::-webkit-scrollbar,
+.training-plm-modal--scroll::-webkit-scrollbar,
+.training-plm-modal--record .training-modal-body::-webkit-scrollbar,
+.training-assignments-table-wrap::-webkit-scrollbar,
+.training-curriculum-designer::-webkit-scrollbar,
+.training-courses-detail::-webkit-scrollbar,
+.audit-list::-webkit-scrollbar,
+.dashboard-audit-card .audit-list--compact::-webkit-scrollbar,
+.app-data-grid .ag-body-vertical-scroll-viewport::-webkit-scrollbar,
+.app-data-grid .ag-body-horizontal-scroll-viewport::-webkit-scrollbar,
+.app-data-grid .ag-center-cols-viewport::-webkit-scrollbar,
+.app-data-grid .ag-body-viewport::-webkit-scrollbar,
+.k-grid .k-grid-content::-webkit-scrollbar {
+  width: var(--tv-scrollbar-size);
+  height: var(--tv-scrollbar-size);
+}
+
+.global-search-results::-webkit-scrollbar,
+.form-type-combobox-list::-webkit-scrollbar,
+.trainee-combobox-list::-webkit-scrollbar,
+.tag-multiselect-dropdown::-webkit-scrollbar,
+.page-insight-scroll::-webkit-scrollbar {
+  width: var(--tv-scrollbar-size-sm);
+  height: var(--tv-scrollbar-size-sm);
+}
+
+.app-scrollbar::-webkit-scrollbar-track,
+.west::-webkit-scrollbar-track,
+.page-main--scroll::-webkit-scrollbar-track,
+.page-insight-scroll::-webkit-scrollbar-track,
+.global-search-results::-webkit-scrollbar-track,
+.parts-details::-webkit-scrollbar-track,
+.grid-table-toolbar::-webkit-scrollbar-track,
+.doc-workspace-main::-webkit-scrollbar-track,
+.doc-workspace-aside::-webkit-scrollbar-track,
+.doc-file-preview-text::-webkit-scrollbar-track,
+.doc-attachment-modal-body::-webkit-scrollbar-track,
+.page-insight-block--form-builder::-webkit-scrollbar-track,
+.page-insight-json::-webkit-scrollbar-track,
+.form-type-combobox-list::-webkit-scrollbar-track,
+.trainee-combobox-list::-webkit-scrollbar-track,
+.tag-multiselect-dropdown::-webkit-scrollbar-track,
+.forms-library-list::-webkit-scrollbar-track,
+.forms-canvas-scroll::-webkit-scrollbar-track,
+.forms-properties-body::-webkit-scrollbar-track,
+.forms-saved-table-wrap::-webkit-scrollbar-track,
+.submit-review-body::-webkit-scrollbar-track,
+.forms-json-body::-webkit-scrollbar-track,
+.forms-json-content::-webkit-scrollbar-track,
+.training-plm-modal--scroll::-webkit-scrollbar-track,
+.training-plm-modal--record .training-modal-body::-webkit-scrollbar-track,
+.training-assignments-table-wrap::-webkit-scrollbar-track,
+.training-curriculum-designer::-webkit-scrollbar-track,
+.training-courses-detail::-webkit-scrollbar-track,
+.audit-list::-webkit-scrollbar-track,
+.dashboard-audit-card .audit-list--compact::-webkit-scrollbar-track,
+.app-data-grid .ag-body-vertical-scroll-viewport::-webkit-scrollbar-track,
+.app-data-grid .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track,
+.app-data-grid .ag-center-cols-viewport::-webkit-scrollbar-track,
+.app-data-grid .ag-body-viewport::-webkit-scrollbar-track,
+.k-grid .k-grid-content::-webkit-scrollbar-track {
+  background: var(--tv-scrollbar-track);
+  border-radius: 999px;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb,
+.west::-webkit-scrollbar-thumb,
+.page-main--scroll::-webkit-scrollbar-thumb,
+.page-insight-scroll::-webkit-scrollbar-thumb,
+.global-search-results::-webkit-scrollbar-thumb,
+.parts-details::-webkit-scrollbar-thumb,
+.grid-table-toolbar::-webkit-scrollbar-thumb,
+.doc-workspace-main::-webkit-scrollbar-thumb,
+.doc-workspace-aside::-webkit-scrollbar-thumb,
+.doc-file-preview-text::-webkit-scrollbar-thumb,
+.doc-attachment-modal-body::-webkit-scrollbar-thumb,
+.page-insight-block--form-builder::-webkit-scrollbar-thumb,
+.page-insight-json::-webkit-scrollbar-thumb,
+.form-type-combobox-list::-webkit-scrollbar-thumb,
+.trainee-combobox-list::-webkit-scrollbar-thumb,
+.tag-multiselect-dropdown::-webkit-scrollbar-thumb,
+.forms-library-list::-webkit-scrollbar-thumb,
+.forms-canvas-scroll::-webkit-scrollbar-thumb,
+.forms-properties-body::-webkit-scrollbar-thumb,
+.forms-saved-table-wrap::-webkit-scrollbar-thumb,
+.submit-review-body::-webkit-scrollbar-thumb,
+.forms-json-body::-webkit-scrollbar-thumb,
+.forms-json-content::-webkit-scrollbar-thumb,
+.training-plm-modal--scroll::-webkit-scrollbar-thumb,
+.training-plm-modal--record .training-modal-body::-webkit-scrollbar-thumb,
+.training-assignments-table-wrap::-webkit-scrollbar-thumb,
+.training-curriculum-designer::-webkit-scrollbar-thumb,
+.training-courses-detail::-webkit-scrollbar-thumb,
+.audit-list::-webkit-scrollbar-thumb,
+.dashboard-audit-card .audit-list--compact::-webkit-scrollbar-thumb,
+.app-data-grid .ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb,
+.app-data-grid .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb,
+.app-data-grid .ag-center-cols-viewport::-webkit-scrollbar-thumb,
+.app-data-grid .ag-body-viewport::-webkit-scrollbar-thumb,
+.k-grid .k-grid-content::-webkit-scrollbar-thumb {
+  background: var(--tv-scrollbar-thumb);
+  border: 2px solid var(--tv-scrollbar-track);
+  border-radius: 999px;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover,
+.west::-webkit-scrollbar-thumb:hover,
+.page-main--scroll::-webkit-scrollbar-thumb:hover,
+.page-insight-scroll::-webkit-scrollbar-thumb:hover,
+.global-search-results::-webkit-scrollbar-thumb:hover,
+.parts-details::-webkit-scrollbar-thumb:hover,
+.grid-table-toolbar::-webkit-scrollbar-thumb:hover,
+.doc-workspace-main::-webkit-scrollbar-thumb:hover,
+.doc-workspace-aside::-webkit-scrollbar-thumb:hover,
+.doc-file-preview-text::-webkit-scrollbar-thumb:hover,
+.doc-attachment-modal-body::-webkit-scrollbar-thumb:hover,
+.page-insight-block--form-builder::-webkit-scrollbar-thumb:hover,
+.page-insight-json::-webkit-scrollbar-thumb:hover,
+.form-type-combobox-list::-webkit-scrollbar-thumb:hover,
+.trainee-combobox-list::-webkit-scrollbar-thumb:hover,
+.tag-multiselect-dropdown::-webkit-scrollbar-thumb:hover,
+.forms-library-list::-webkit-scrollbar-thumb:hover,
+.forms-canvas-scroll::-webkit-scrollbar-thumb:hover,
+.forms-properties-body::-webkit-scrollbar-thumb:hover,
+.forms-saved-table-wrap::-webkit-scrollbar-thumb:hover,
+.submit-review-body::-webkit-scrollbar-thumb:hover,
+.forms-json-body::-webkit-scrollbar-thumb:hover,
+.forms-json-content::-webkit-scrollbar-thumb:hover,
+.training-plm-modal--scroll::-webkit-scrollbar-thumb:hover,
+.training-plm-modal--record .training-modal-body::-webkit-scrollbar-thumb:hover,
+.training-assignments-table-wrap::-webkit-scrollbar-thumb:hover,
+.training-curriculum-designer::-webkit-scrollbar-thumb:hover,
+.training-courses-detail::-webkit-scrollbar-thumb:hover,
+.audit-list::-webkit-scrollbar-thumb:hover,
+.dashboard-audit-card .audit-list--compact::-webkit-scrollbar-thumb:hover,
+.app-data-grid .ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb:hover,
+.app-data-grid .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover,
+.app-data-grid .ag-center-cols-viewport::-webkit-scrollbar-thumb:hover,
+.app-data-grid .ag-body-viewport::-webkit-scrollbar-thumb:hover,
+.k-grid .k-grid-content::-webkit-scrollbar-thumb:hover {
+  background: var(--tv-scrollbar-thumb-hover);
+}
+
+/* Sidebar (dark) */
+
+.west::-webkit-scrollbar-track {
+  background: var(--tv-scrollbar-track-inverse);
+}
+
+.west::-webkit-scrollbar-thumb {
+  background: var(--tv-scrollbar-thumb-inverse);
+  border-color: var(--tv-scrollbar-track-inverse);
+}
+
+.west::-webkit-scrollbar-thumb:hover {
+  background: var(--tv-scrollbar-thumb-inverse-hover);
+}
+
+/* Mobile stacked layout */
+
+@media (max-width: 960px) {
+  .page-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--tv-scrollbar-thumb) var(--tv-scrollbar-track);
+  }
+
+  .page-body::-webkit-scrollbar {
+    width: var(--tv-scrollbar-size);
+    height: var(--tv-scrollbar-size);
+  }
+
+  .page-body::-webkit-scrollbar-track {
+    background: var(--tv-scrollbar-track);
+    border-radius: 999px;
+  }
+
+  .page-body::-webkit-scrollbar-thumb {
+    background: var(--tv-scrollbar-thumb);
+    border: 2px solid var(--tv-scrollbar-track);
+    border-radius: 999px;
+  }
+
+  .page-body::-webkit-scrollbar-thumb:hover {
+    background: var(--tv-scrollbar-thumb-hover);
+  }
+}

@@ -32,7 +32,7 @@ export function countTrainingCompletion(training) {
   const counts = Object.fromEntries(COMPLETION_STATUSES.map((s) => [s, 0]));
 
   (training || []).forEach((record) => {
-    const status = formatCompletionStatus(record?.completionstatus);
+    const status = formatCompletionStatus(record?.completionstatus || record?.status);
     counts[status] = (counts[status] || 0) + 1;
   });
 
@@ -45,7 +45,8 @@ export function countTrainingCompletion(training) {
 export function countOverdueTraining(training) {
   const now = Date.now();
   return (training || []).filter((record) => {
-    if (formatCompletionStatus(record?.completionstatus) === "Completed") return false;
+    const status = formatCompletionStatus(record?.completionstatus || record?.status);
+    if (status === "Completed") return false;
     if (!record?.duedate) return false;
     const due = new Date(record.duedate).getTime();
     return !Number.isNaN(due) && due < now;

@@ -1,7 +1,16 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import apiClient from "../api/client";
 import keycloak from "../keycloak";
-import FormTypeSelect from "./common/FormTypeSelect";
+import FormBuilderDesigner from "./forms/FormBuilderDesigner";
+import AppDataGrid from "./common/AppDataGrid";
+import FormNameCellRenderer from "./common/FormNameCellRenderer";
+import FormDetailRowRenderer from "./common/FormDetailRowRenderer";
+import FormSavedActionsCellRenderer from "./common/FormSavedActionsCellRenderer";
+import { multiRowSelection } from "./common/gridHelpers";
+import {
+  createFieldFromPalette,
+  normalizeFormField,
+} from "./forms/formBuilderConstants";
 import WorkflowStatusBadge from "./common/WorkflowStatusBadge";
 import SubmitReviewDrawer from "./common/SubmitReviewDrawer";
 import { usePageInsight } from "./dashboard/PageInsightContext";
@@ -11,293 +20,16 @@ import { DEFAULT_FORM_TYPES } from "../constants/documentCatalog";
 import { canSendToReview, canEdit, canDelete, canRevise, INITIAL_WORKFLOW_STATUS } from "../constants/workflowCatalog";
 import { useAppFeedback } from "../context/AppFeedbackContext";
 import { nextRevision, revisionHelpText } from "../utils/revisionUtils";
-import { parseFormTemplate } from "./docs/docFormUtils";
+import { parseFormTemplate, formatWorkflowDate } from "./docs/docFormUtils";
 
 import {
   DndContext,
   DragOverlay,
-  useDraggable,
-  useDroppable,
   closestCenter,
 } from "@dnd-kit/core";
 
 import "./Forms.css";
 import "./Docs.css";
-
-const FIELD_PALETTE = [
-  { id: "text", label: "Text Input", type: "text" },
-  { id: "textarea", label: "Textarea", type: "textarea" },
-  { id: "number", label: "Number", type: "number" },
-  { id: "dropdown", label: "Dropdown", type: "dropdown", options: ["Option 1", "Option 2"] },
-  { id: "date", label: "Date", type: "date" },
-  { id: "email", label: "Email", type: "email" },
-  { id: "checkbox", label: "Checkbox", type: "checkbox" },
-  { id: "radio", label: "Radio Group", type: "radio", options: ["Option 1", "Option 2"] },
-  { id: "file", label: "File Upload", type: "file" },
-  { id: "hyperlink", label: "Hyperlink", type: "hyperlink" },
-];
-
-const PLACEHOLDER_TYPES = new Set(["text", "textarea", "number", "email", "hyperlink"]);
-
-function DraggablePaletteItem({ field }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `palette-${field.id}`,
-    data: field,
-  });
-
-  return (
-    <button
-      type="button"
-      ref={setNodeRef}
-      className={`forms-chip${isDragging ? " is-dragging" : ""}`}
-      {...listeners}
-      {...attributes}
-    >
-      {field.label}
-    </button>
-  );
-}
-
-function CanvasDropZone({ children }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
-
-  return (
-    <div ref={setNodeRef} className={`forms-canvas${isOver ? " is-over" : ""}`}>
-      {children}
-    </div>
-  );
-}
-
-function FormFieldControl({ field, interactive }) {
-  const disabled = !interactive;
-  const placeholder = field.placeholder || "";
-  const options = field.options || ["Option 1", "Option 2"];
-
-  switch (field.type) {
-    case "text":
-      return (
-        <input
-          type="text"
-          className="forms-control"
-          disabled={disabled}
-          placeholder={placeholder}
-          readOnly={!interactive}
-        />
-      );
-    case "email":
-      return (
-        <input
-          type="email"
-          className="forms-control"
-          disabled={disabled}
-          placeholder={placeholder || "name@example.com"}
-          readOnly={!interactive}
-        />
-      );
-    case "textarea":
-      return (
-        <textarea
-          className="forms-control"
-          disabled={disabled}
-          placeholder={placeholder}
-          readOnly={!interactive}
-          rows={3}
-        />
-      );
-    case "number":
-      return (
-        <input
-          type="number"
-          className="forms-control"
-          disabled={disabled}
-          placeholder={placeholder}
-          readOnly={!interactive}
-        />
-      );
-    case "date":
-      return (
-        <input
-          type="date"
-          className="forms-control"
-          disabled={disabled}
-          readOnly={!interactive}
-        />
-      );
-    case "dropdown":
-      return (
-        <select className="forms-control" disabled={disabled}>
-          <option value="">Select an option</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      );
-    case "checkbox":
-      return (
-        <label className="forms-inline-control">
-          <input type="checkbox" disabled={disabled} />
-          <span>{field.label}</span>
-        </label>
-      );
-    case "radio":
-      return (
-        <div className="forms-radio-group">
-          {options.map((option) => (
-            <label key={option} className="forms-inline-control">
-              <input
-                type="radio"
-                name={`field-${field.id}`}
-                disabled={disabled}
-                readOnly={!interactive}
-              />
-              <span>{option}</span>
-            </label>
-          ))}
-        </div>
-      );
-    case "file":
-      return <input type="file" className="forms-control forms-control-file" disabled={disabled} />;
-    case "hyperlink":
-      return (
-        <input
-          type="url"
-          className="forms-control"
-          disabled={disabled}
-          placeholder={placeholder || "https://example.com"}
-          readOnly={!interactive}
-        />
-      );
-    default:
-      return (
-        <input
-          type="text"
-          className="forms-control"
-          disabled={disabled}
-          readOnly={!interactive}
-        />
-      );
-  }
-}
-
-const FormCanvasField = memo(function FormCanvasField({
-  field,
-  selected,
-  previewMode,
-  onSelect,
-  onDelete,
-}) {
-  const showLabel = field.type !== "checkbox";
-
-  return (
-    <div
-      className={`forms-field${selected ? " selected" : ""}${previewMode ? " preview" : ""}`}
-      onClick={() => !previewMode && onSelect(field.id)}
-      onKeyDown={(e) => {
-        if (previewMode) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect(field.id);
-        }
-      }}
-      role={previewMode ? undefined : "button"}
-      tabIndex={previewMode ? undefined : 0}
-    >
-      {!previewMode && (
-        <button
-          type="button"
-          className="forms-field-delete"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(field.id);
-          }}
-          aria-label="Remove field"
-        >
-          ×
-        </button>
-      )}
-
-      {showLabel && (
-        <span className="forms-field-label">
-          {field.label}
-          {field.required && <span className="forms-required">*</span>}
-        </span>
-      )}
-
-      <div className="forms-field-control" aria-hidden={!previewMode}>
-        <FormFieldControl field={field} interactive={previewMode} />
-      </div>
-    </div>
-  );
-});
-
-function FieldPropertiesPanel({ field, onUpdate }) {
-  const [label, setLabel] = useState("");
-  const [placeholder, setPlaceholder] = useState("");
-
-  useEffect(() => {
-    if (!field) return;
-    setLabel(field.label || "");
-    setPlaceholder(field.placeholder || "");
-  }, [field?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!field) {
-    return <p className="forms-muted">Select a field to edit.</p>;
-  }
-
-  const commitLabel = () => {
-    if (label !== field.label) {
-      onUpdate(field.id, { label });
-    }
-  };
-
-  const commitPlaceholder = () => {
-    const next = placeholder.trim();
-    if (next !== (field.placeholder || "")) {
-      onUpdate(field.id, { placeholder: next });
-    }
-  };
-
-  const showPlaceholder = PLACEHOLDER_TYPES.has(field.type);
-
-  return (
-    <div className="forms-properties-form">
-      <label className="forms-prop-field">
-        Label
-        <input
-          className="forms-control"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          onBlur={commitLabel}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-        />
-      </label>
-
-      {showPlaceholder && (
-        <label className="forms-prop-field">
-          Placeholder
-          <input
-            className="forms-control"
-            value={placeholder}
-            onChange={(e) => setPlaceholder(e.target.value)}
-            onBlur={commitPlaceholder}
-            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-          />
-        </label>
-      )}
-
-      <label className="forms-checkbox-row">
-        <input
-          type="checkbox"
-          checked={Boolean(field.required)}
-          onChange={(e) => onUpdate(field.id, { required: e.target.checked })}
-        />
-        Required
-      </label>
-    </div>
-  );
-}
 
 function JsonViewerDrawer({ drawer, onClose, onCollapse, onExpand }) {
   if (!drawer.open) return null;
@@ -407,10 +139,12 @@ function Forms({ searchText = "", view = "all" }) {
   const [reviseDialog, setReviseDialog] = useState(null);
   const [revising, setRevising] = useState(false);
   const builderRef = useRef(null);
+  const gridApiRef = useRef(null);
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
 
   const showBuilderPanel = showBuilder || editingFormId !== null;
+  const showSavedTable = showSaved && editingFormId === null;
 
   const selectedField = useMemo(
     () => fields.find((f) => f.id === selectedFieldId) || null,
@@ -431,6 +165,11 @@ function Forms({ searchText = "", view = "all" }) {
     [formsOpen, searchText]
   );
 
+  const selectedAuditForm = useMemo(() => {
+    if (selectedFormIds.length !== 1) return null;
+    return formsOpen.find((form) => form.id === selectedFormIds[0]) || null;
+  }, [formsOpen, selectedFormIds]);
+
   useEffect(() => {
     fetchForms();
     fetchFormTypes();
@@ -439,22 +178,77 @@ function Forms({ searchText = "", view = "all" }) {
     }
   }, [showSaved]);
 
-  useEffect(() => {
-    if (editingFormId && builderRef.current) {
-      builderRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [editingFormId]);
+  const cancelEditForm = useCallback(() => {
+    setEditingFormId(null);
+    setFormName("");
+    setFormType("");
+    setFormRevision("");
+    setFields([]);
+    setSelectedFieldId(null);
+    setPreviewMode(false);
+  }, []);
 
   useEffect(() => {
+    if (view === "builder") {
+      setInsight({
+        hideInsightPanel: true,
+        hidePageHeader: false,
+        breadcrumbs: null,
+        formsEditorActive: false,
+      });
+      return () => {
+        setInsight({
+          hideInsightPanel: false,
+          hidePageHeader: false,
+          breadcrumbs: null,
+          formsEditorActive: false,
+        });
+      };
+    }
+
+    if (editingFormId) {
+      setInsight({
+        hideInsightPanel: true,
+        hidePageHeader: false,
+        formsEditorActive: true,
+        breadcrumbs: [
+          { label: "Saved Forms", onClick: cancelEditForm },
+          { label: formName.trim() || "Form" },
+          { label: "Edit" },
+        ],
+      });
+      return;
+    }
+
     setInsight({
       recordCount: filteredSavedForms.length,
-      selectedCount: fields.length,
+      selectedCount: selectedFormIds.length,
+      hideInsightPanel: false,
+      hidePageHeader: false,
+      breadcrumbs: null,
+      formsEditorActive: false,
       extra: {
-        Fields: fields.length,
-        Mode: previewMode ? "Preview" : "Edit",
+        Records: filteredSavedForms.length,
       },
+      auditEntity: selectedAuditForm
+        ? {
+            type: "form",
+            id: selectedAuditForm.id,
+            label: selectedAuditForm.fmname,
+            revision: selectedAuditForm.fmrev || null,
+          }
+        : null,
     });
-  }, [filteredSavedForms.length, fields.length, previewMode, setInsight]);
+  }, [
+    view,
+    editingFormId,
+    formName,
+    filteredSavedForms.length,
+    selectedFormIds.length,
+    selectedAuditForm,
+    cancelEditForm,
+    setInsight,
+  ]);
 
   const fetchUsers = async () => {
     setUsersLoading(true);
@@ -505,17 +299,7 @@ function Forms({ searchText = "", view = "all" }) {
     if (!field) return;
 
     const newId = Date.now();
-    setFields((prev) => [
-      ...prev,
-      {
-        id: newId,
-        label: field.label,
-        type: field.type,
-        options: field.options ? [...field.options] : undefined,
-        required: false,
-        placeholder: "",
-      },
-    ]);
+    setFields((prev) => [...prev, createFieldFromPalette(field, newId)]);
     setSelectedFieldId(newId);
   }, []);
 
@@ -538,7 +322,7 @@ function Forms({ searchText = "", view = "all" }) {
     setSelectedFieldId(id);
   }, []);
 
-  const openJsonDrawer = (form) => {
+  const openJsonDrawer = useCallback((form) => {
     let payload;
     try {
       payload =
@@ -559,7 +343,7 @@ function Forms({ searchText = "", view = "all" }) {
       title: form.fmname,
       content: formatted,
     });
-  };
+  }, []);
 
   const closeJsonDrawer = () => {
     setJsonDrawer({ open: false, collapsed: false, title: "", content: "" });
@@ -573,17 +357,7 @@ function Forms({ searchText = "", view = "all" }) {
     setJsonDrawer((prev) => ({ ...prev, collapsed: false }));
   };
 
-  const cancelEditForm = () => {
-    setEditingFormId(null);
-    setFormName("");
-    setFormType("");
-    setFormRevision("");
-    setFields([]);
-    setSelectedFieldId(null);
-    setPreviewMode(false);
-  };
-
-  const loadFormForEdit = (form) => {
+  const loadFormForEdit = useCallback((form) => {
     if (!canEdit(form.fmstatus)) {
       feedback.workflowBlocked({
         itemType: "form",
@@ -601,13 +375,13 @@ function Forms({ searchText = "", view = "all" }) {
     setFormRevision(form.fmrev && form.fmrev !== "1" ? form.fmrev : "");
     setFields(
       Array.isArray(template.fields)
-        ? template.fields.map((field) => ({ ...field }))
+        ? template.fields.map((field) => normalizeFormField(field))
         : []
     );
     setSelectedFieldId(null);
     setPreviewMode(false);
     setExpandedFormId(null);
-  };
+  }, [feedback]);
 
   const saveForm = async () => {
     if (!formName.trim()) {
@@ -669,7 +443,7 @@ function Forms({ searchText = "", view = "all" }) {
     setDeleteDialog(null);
   };
 
-  const deleteForm = (form) => {
+  const deleteForm = useCallback((form) => {
     if (!canDelete(form.fmstatus)) {
       feedback.workflowBlocked({
         itemType: "form",
@@ -679,9 +453,9 @@ function Forms({ searchText = "", view = "all" }) {
       return;
     }
     openDeleteDialog({ type: "single", form });
-  };
+  }, [feedback]);
 
-  const openReviseDialog = (form) => {
+  const openReviseDialog = useCallback((form) => {
     if (!canRevise(form.fmstatus)) {
       feedback.workflowBlocked({
         itemType: "form",
@@ -691,7 +465,7 @@ function Forms({ searchText = "", view = "all" }) {
       return;
     }
     setReviseDialog(form);
-  };
+  }, [feedback]);
 
   const closeReviseDialog = () => {
     if (revising) return;
@@ -762,6 +536,7 @@ function Forms({ searchText = "", view = "all" }) {
           setExpandedFormId(null);
         }
         setSelectedFormIds([]);
+        gridApiRef.current?.deselectAll?.();
       }
 
       await fetchForms();
@@ -774,25 +549,193 @@ function Forms({ searchText = "", view = "all" }) {
     }
   };
 
-  const toggleFormExpand = (formId) => {
+  const toggleFormExpand = useCallback((formId) => {
     setExpandedFormId((current) => (current === formId ? null : formId));
-  };
+  }, []);
 
-  const toggleFormSelection = (formId) => {
-    setSelectedFormIds((current) =>
-      current.includes(formId)
-        ? current.filter((id) => id !== formId)
-        : [...current, formId]
-    );
-  };
+  const rowSelection = useMemo(() => multiRowSelection, []);
 
-  const toggleSelectAllForms = () => {
-    setSelectedFormIds((current) =>
-      current.length === filteredSavedForms.length
-        ? []
-        : filteredSavedForms.map((form) => form.id)
-    );
-  };
+  const savedFormGridRows = useMemo(() => {
+    const rows = [];
+    filteredSavedForms.forEach((form) => {
+      rows.push(form);
+      if (expandedFormId === form.id) {
+        rows.push({
+          id: `detail-${form.id}`,
+          detailRow: true,
+          form,
+        });
+      }
+    });
+    return rows;
+  }, [filteredSavedForms, expandedFormId]);
+
+  const handleSavedFormSelectionChanged = useCallback((event) => {
+    gridApiRef.current = event.api;
+    const ids = event.api
+      .getSelectedRows()
+      .filter((row) => !row.detailRow)
+      .map((row) => row.id);
+    setSelectedFormIds(ids);
+  }, []);
+
+  const handleSavedFormGridReady = useCallback((event) => {
+    gridApiRef.current = event.api;
+  }, []);
+
+  const getSavedFormRowId = useCallback((params) => {
+    const row = params.data;
+    return row.detailRow ? `detail-${row.form.id}` : String(row.id);
+  }, []);
+
+  const isSavedFormFullWidthRow = useCallback(
+    (params) => Boolean(params.rowNode?.data?.detailRow),
+    []
+  );
+
+  const getSavedFormRowHeight = useCallback((params) => {
+    const row = params.node?.data ?? params.data;
+    if (row?.detailRow) {
+      const template = parseFormTemplate(row.form.fmjson);
+      const fieldCount = template.fields?.length || 0;
+      return Math.min(480, 120 + fieldCount * 36);
+    }
+    return 52;
+  }, []);
+
+  const isSavedFormRowSelectable = useCallback(
+    (params) => !params.rowNode?.data?.detailRow,
+    []
+  );
+
+  const getSavedFormRowClass = useCallback(
+    (params) => {
+      if (params.data?.detailRow) return "forms-saved-detail-wrapper";
+      if (params.data?.id === editingFormId) return "forms-saved-row-active";
+      return params.data?.id === expandedFormId ? "forms-saved-row-active" : "";
+    },
+    [expandedFormId, editingFormId]
+  );
+
+  const savedFormGridContext = useMemo(
+    () => ({
+      expandedFormId,
+      onToggleExpand: toggleFormExpand,
+      onEditForm: loadFormForEdit,
+      onReviseForm: openReviseDialog,
+      onDeleteForm: deleteForm,
+      onOpenJson: openJsonDrawer,
+      deleting,
+    }),
+    [
+      expandedFormId,
+      toggleFormExpand,
+      deleting,
+      loadFormForEdit,
+      openReviseDialog,
+      deleteForm,
+      openJsonDrawer,
+    ]
+  );
+
+  const savedFormColumnDefs = useMemo(
+    () => [
+      {
+        field: "fmname",
+        headerName: "Name",
+        minWidth: 180,
+        flex: 1,
+        cellRenderer: FormNameCellRenderer,
+      },
+      {
+        field: "ftype",
+        headerName: "Form type",
+        flex: 0,
+        minWidth: 120,
+        width: 130,
+        valueGetter: (params) => (params.data?.detailRow ? "" : params.data.ftype || "—"),
+      },
+      {
+        field: "fmrev",
+        headerName: "Revision",
+        flex: 0,
+        width: 90,
+        maxWidth: 100,
+        valueGetter: (params) => (params.data?.detailRow ? "" : params.data.fmrev || "1"),
+      },
+      {
+        field: "fmstatus",
+        headerName: "Status",
+        flex: 0,
+        minWidth: 110,
+        width: 120,
+        cellRenderer: (params) => {
+          if (params.data?.detailRow) return null;
+          return <WorkflowStatusBadge status={params.data.fmstatus} />;
+        },
+      },
+      {
+        field: "fowner",
+        headerName: "Owner",
+        flex: 0,
+        minWidth: 110,
+        width: 120,
+        valueGetter: (params) =>
+          params.data?.detailRow ? "" : formatStoredOwner(params.data.fowner),
+        tooltipValueGetter: (params) => params.data?.fowner || "",
+      },
+      {
+        headerName: "JSON",
+        flex: 0,
+        width: 100,
+        maxWidth: 110,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params) => {
+          if (params.data?.detailRow) return null;
+          return (
+            <button
+              type="button"
+              className="forms-link-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                params.context?.onOpenJson?.(params.data);
+              }}
+            >
+              View JSON
+            </button>
+          );
+        },
+      },
+      {
+        field: "updated",
+        headerName: "Updated",
+        flex: 0,
+        minWidth: 112,
+        width: 118,
+        valueGetter: (params) => (params.data?.detailRow ? "" : params.data.updated || ""),
+        valueFormatter: (params) => formatWorkflowDate(params.value),
+        tooltipValueGetter: (params) => {
+          if (params.data?.detailRow || !params.value) return "";
+          const date = new Date(params.value);
+          return Number.isNaN(date.getTime()) ? String(params.value) : date.toLocaleString();
+        },
+        cellClass: "forms-muted forms-updated-col",
+      },
+      {
+        headerName: "Actions",
+        flex: 0,
+        minWidth: 112,
+        maxWidth: 120,
+        width: 116,
+        sortable: false,
+        filter: false,
+        cellRenderer: FormSavedActionsCellRenderer,
+        cellClass: "forms-saved-actions-col",
+      },
+    ],
+    []
+  );
 
   const draftFormsForReview = useMemo(
     () =>
@@ -863,9 +806,13 @@ function Forms({ searchText = "", view = "all" }) {
 
   return (
     <div
-      className={`forms-page${
-        view === "builder" ? " forms-page--builder" : view === "saved" ? " forms-page--saved" : ""
-      }`}
+      className={
+        showBuilderPanel
+          ? `forms-page${
+              view === "builder" ? " forms-page--builder" : " forms-page--editing"
+            }`
+          : "grid-page"
+      }
     >
       {showBuilderPanel && (
       <DndContext
@@ -874,306 +821,88 @@ function Forms({ searchText = "", view = "all" }) {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <section className="forms-builder" ref={builderRef}>
-          {editingFormId && (
-            <div className="forms-editing-banner">
-              <span>
-                Editing <strong>{formName || "form"}</strong>
-              </span>
-              <button type="button" className="forms-link-btn" onClick={cancelEditForm}>
-                Cancel edit
-              </button>
-            </div>
-          )}
-          <div className="forms-toolbar">
-            <input
-              className="forms-control forms-toolbar-input"
-              placeholder="Form name"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-            <FormTypeSelect
-              formTypes={formTypes}
-              value={formType}
-              onChange={setFormType}
-              loading={formTypesLoading}
-              className="forms-control forms-toolbar-select"
-            />
-            <input
-              className="forms-control forms-toolbar-revision"
-              placeholder="Revision"
-              value={formRevision}
-              onChange={(e) => setFormRevision(e.target.value)}
-            />
-            <div className="forms-toolbar-actions">
-              <button
-                type="button"
-                className={`parts-btn${previewMode ? " primary" : ""}`}
-                onClick={() => setPreviewMode((prev) => !prev)}
-              >
-                {previewMode ? "Edit" : "Preview"}
-              </button>
-              <button type="button" className="parts-btn primary" onClick={saveForm}>
-                {editingFormId ? "Update" : "Save"}
-              </button>
-            </div>
-          </div>
-
-          <div className="forms-palette">
-            <span className="forms-palette-label">Add field</span>
-            <div className="forms-palette-chips">
-              {FIELD_PALETTE.map((field) => (
-                <DraggablePaletteItem key={field.id} field={field} />
-              ))}
-            </div>
-          </div>
-
-          <div className="forms-editor">
-            <div className="forms-canvas-wrap">
-              <CanvasDropZone>
-                {fields.length === 0 ? (
-                  <p className="forms-canvas-empty">Drag a field here to start building.</p>
-                ) : (
-                  fields.map((field) => (
-                    <FormCanvasField
-                      key={field.id}
-                      field={field}
-                      selected={selectedFieldId === field.id}
-                      previewMode={previewMode}
-                      onSelect={selectField}
-                      onDelete={deleteField}
-                    />
-                  ))
-                )}
-              </CanvasDropZone>
-            </div>
-
-            <aside className="forms-properties">
-              <h4 className="forms-properties-heading">Properties</h4>
-              <FieldPropertiesPanel field={selectedField} onUpdate={updateField} />
-            </aside>
-          </div>
+        <section className="forms-builder-shell" ref={builderRef}>
+          <FormBuilderDesigner
+            formName={formName}
+            formType={formType}
+            formRevision={formRevision}
+            formTypes={formTypes}
+            formTypesLoading={formTypesLoading}
+            fields={fields}
+            selectedFieldId={selectedFieldId}
+            selectedField={selectedField}
+            previewMode={previewMode}
+            editingFormId={editingFormId}
+            onFormNameChange={setFormName}
+            onFormTypeChange={setFormType}
+            onFormRevisionChange={setFormRevision}
+            onTogglePreview={() => setPreviewMode((prev) => !prev)}
+            onSave={saveForm}
+            onCancelEdit={cancelEditForm}
+            onSelectField={selectField}
+            onDeleteField={deleteField}
+            onUpdateField={updateField}
+          />
         </section>
 
         <DragOverlay dropAnimation={null}>
           {activeDragField ? (
-            <div className="forms-chip forms-chip-overlay">{activeDragField.label}</div>
+            <div className="forms-library-item forms-library-item-overlay">
+              <span className="forms-library-item-label">{activeDragField.label}</span>
+              <span className="forms-library-item-grip" aria-hidden="true">
+                ⋮
+              </span>
+            </div>
           ) : null}
         </DragOverlay>
       </DndContext>
       )}
 
-      {showSaved && (
-        <section className="forms-saved">
-          <div className="forms-saved-header">
-            <div>
-              <h3 className="forms-section-title">Saved forms</h3>
-              <p className="forms-muted forms-revision-hint">{revisionHelpText()}</p>
-            </div>
-            <div className="forms-saved-toolbar">
-              <button
-                type="button"
-                className="parts-btn danger"
-                onClick={deleteSelectedForms}
-                disabled={selectedFormIds.length === 0 || deleting}
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                className="parts-btn"
-                onClick={openReviewDrawer}
-                disabled={selectedFormIds.length === 0}
-              >
-                Send to review
-              </button>
-              {selectedFormIds.length > 0 && (
-                <span className="parts-selection-count">
-                  {selectedFormIds.length} selected
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="forms-saved-table-wrap">
-            <table className="forms-saved-table">
-              <thead>
-                <tr>
-                  <th className="forms-saved-select-col">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all forms"
-                      checked={
-                        filteredSavedForms.length > 0 &&
-                        selectedFormIds.length === filteredSavedForms.length
-                      }
-                      onChange={toggleSelectAllForms}
-                      disabled={filteredSavedForms.length === 0}
-                    />
-                  </th>
-                  <th>Name</th>
-                  <th>Form type</th>
-                  <th>Revision</th>
-                  <th>Status</th>
-                  <th>Owner</th>
-                  <th>JSON</th>
-                  <th>Updated</th>
-                  <th className="forms-saved-actions-col">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSavedForms.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="forms-muted forms-saved-empty">
-                      No saved forms yet.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSavedForms.map((form) => (
-                    <Fragment key={form.id}>
-                      <tr
-                        className={
-                          expandedFormId === form.id || editingFormId === form.id
-                            ? "forms-saved-row-active"
-                            : ""
-                        }
-                      >
-                        <td className="forms-saved-select-col">
-                          <input
-                            type="checkbox"
-                            aria-label={`Select ${form.fmname}`}
-                            checked={selectedFormIds.includes(form.id)}
-                            onChange={() => toggleFormSelection(form.id)}
-                          />
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className={`doc-name-link${
-                              expandedFormId === form.id ? " is-expanded" : ""
-                            }`}
-                            aria-expanded={expandedFormId === form.id}
-                            onClick={() => toggleFormExpand(form.id)}
-                          >
-                            {form.fmname}
-                          </button>
-                        </td>
-                        <td>{form.ftype}</td>
-                        <td>{form.fmrev || "1"}</td>
-                        <td>
-                          <WorkflowStatusBadge status={form.fmstatus} />
-                        </td>
-                        <td title={form.fowner || ""}>{formatStoredOwner(form.fowner)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="forms-link-btn"
-                            onClick={() => openJsonDrawer(form)}
-                          >
-                            View JSON
-                          </button>
-                        </td>
-                        <td className="forms-muted">{form.updated}</td>
-                        <td className="forms-saved-actions-col">
-                          <div className="forms-saved-row-actions">
-                            <button
-                              type="button"
-                              className="group-edit-btn"
-                              aria-label={`Edit ${form.fmname}`}
-                              title="Edit form"
-                              onClick={() => loadFormForEdit(form)}
-                            >
-                              <svg
-                                viewBox="0 0 24 24"
-                                width="18"
-                                height="18"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                aria-hidden="true"
-                              >
-                                <path d="M12 20h9" />
-                                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                              </svg>
-                            </button>
-                            {canRevise(form.fmstatus) && (
-                              <button
-                                type="button"
-                                className="forms-link-btn forms-revise-btn"
-                                onClick={() => openReviseDialog(form)}
-                              >
-                                Revise
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className="forms-delete-btn"
-                              aria-label={`Delete ${form.fmname}`}
-                              disabled={deleting}
-                              title="Delete form"
-                              onClick={() => deleteForm(form)}
-                            >
-                              <svg
-                                viewBox="0 0 24 24"
-                                width="18"
-                                height="18"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                aria-hidden="true"
-                              >
-                                <path d="M3 6h18" />
-                                <path d="M8 6V4h8v2" />
-                                <path d="M19 6l-1 14H6L5 6" />
-                                <path d="M10 11v6" />
-                                <path d="M14 11v6" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {expandedFormId === form.id && (() => {
-                        const template = parseFormTemplate(form.fmjson);
-                        const templateFields = template.fields || [];
-
-                        return (
-                          <tr className="forms-saved-detail-row">
-                            <td colSpan={9}>
-                              <div className="forms-saved-detail">
-                                <h4 className="forms-saved-detail-heading">Form content</h4>
-                                {templateFields.length > 0 ? (
-                                  <dl className="forms-saved-detail-list forms-saved-detail-list--fields">
-                                    {templateFields.map((field) => (
-                                      <div key={field.id}>
-                                        <dt>
-                                          {field.label}
-                                          {field.required && (
-                                            <span className="forms-required">*</span>
-                                          )}
-                                        </dt>
-                                        <dd>
-                                          {field.type}
-                                          {field.options?.length
-                                            ? ` · ${field.options.join(", ")}`
-                                            : ""}
-                                        </dd>
-                                      </div>
-                                    ))}
-                                  </dl>
-                                ) : (
-                                  <p className="forms-muted">No fields in this form template.</p>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })()}
-                    </Fragment>
-                  ))
+      {showSavedTable && (
+        <>
+          <p className="forms-muted forms-revision-hint docs-revision-hint">{revisionHelpText()}</p>
+          <AppDataGrid
+            rowData={savedFormGridRows}
+            columnDefs={savedFormColumnDefs}
+            context={savedFormGridContext}
+            rowSelection={rowSelection}
+            onSelectionChanged={handleSavedFormSelectionChanged}
+            onGridReady={handleSavedFormGridReady}
+            getRowClass={getSavedFormRowClass}
+            getRowId={getSavedFormRowId}
+            isFullWidthRow={isSavedFormFullWidthRow}
+            fullWidthCellRenderer={FormDetailRowRenderer}
+            getRowHeight={getSavedFormRowHeight}
+            isRowSelectable={isSavedFormRowSelectable}
+            overlayNoRowsTemplate="<span>No saved forms yet.</span>"
+            searchPlaceholder="Search saved forms..."
+            toolbarActions={
+              <>
+                <button
+                  type="button"
+                  className="parts-btn danger"
+                  onClick={deleteSelectedForms}
+                  disabled={selectedFormIds.length === 0 || deleting}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="parts-btn"
+                  onClick={openReviewDrawer}
+                  disabled={selectedFormIds.length === 0}
+                >
+                  Send to review
+                </button>
+                {selectedFormIds.length > 0 && (
+                  <span className="parts-selection-count">
+                    {selectedFormIds.length} selected
+                  </span>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+              </>
+            }
+          />
+        </>
       )}
 
       {showSaved && (

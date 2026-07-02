@@ -9,6 +9,25 @@ export const defaultColDef = {
   minWidth: 120,
 };
 
+export const serialColumnDef = {
+  colId: "serial",
+  headerName: "#",
+  maxWidth: 56,
+  minWidth: 48,
+  flex: 0,
+  sortable: false,
+  filter: false,
+  suppressMovable: true,
+  valueGetter: (params) => {
+    if (!params.node || params.node.rowIndex == null) return "";
+    const api = params.api;
+    if (!api || !api.paginationIsLastPageFound?.()) {
+      return params.node.rowIndex + 1;
+    }
+    return api.paginationGetCurrentPage() * api.paginationGetPageSize() + params.node.rowIndex + 1;
+  },
+};
+
 function AppDataGrid({
   rowData,
   columnDefs,
@@ -26,11 +45,20 @@ function AppDataGrid({
   loading = false,
   overlayNoRowsTemplate = "<span>No records found.</span>",
   showToolbar = true,
+  showSerialColumn = false,
   searchPlaceholder = "Search table...",
   toolbarActions = null,
+  pagination = true,
+  paginationPageSize = 10,
+  domLayout = "normal",
 }) {
   const [quickFilter, setQuickFilter] = useState("");
   const gridApiRef = useRef(null);
+
+  const resolvedColumnDefs = useMemo(
+    () => (showSerialColumn ? [serialColumnDef, ...columnDefs] : columnDefs),
+    [columnDefs, showSerialColumn]
+  );
 
   const resolvedGetRowId = useMemo(
     () => getRowId || ((params) => String(params.data.id)),
@@ -53,11 +81,18 @@ function AppDataGrid({
     [onGridReady]
   );
 
+  const handlePaginationChanged = useCallback((event) => {
+    if (!showSerialColumn) return;
+    event.api.refreshCells({ columns: ["serial"], force: true });
+  }, [showSerialColumn]);
+
   const resolvedRowSelection = useMemo(() => {
     if (!rowSelection) return undefined;
     if (!isRowSelectable) return rowSelection;
     return { ...rowSelection, isRowSelectable };
   }, [rowSelection, isRowSelectable]);
+
+  const fillHeight = domLayout !== "autoHeight";
 
   return (
     <div className="app-data-grid-wrap">
@@ -89,27 +124,31 @@ function AppDataGrid({
         </div>
       )}
 
-      <div className="ag-theme-quartz app-data-grid app-data-grid--fill">
+      <div
+        className={`ag-theme-quartz app-data-grid${fillHeight ? " app-data-grid--fill" : ""}`}
+      >
         <AgGridReact
           theme="legacy"
           rowData={rowData}
-          columnDefs={columnDefs}
+          columnDefs={resolvedColumnDefs}
           defaultColDef={defaultColDef}
           context={context}
-          domLayout="normal"
-          pagination
-          paginationPageSize={10}
+          domLayout={domLayout}
+          pagination={pagination}
+          paginationPageSize={paginationPageSize}
           paginationPageSizeSelector={[10, 20, 50]}
           animateRows
           getRowId={resolvedGetRowId}
           rowSelection={resolvedRowSelection}
           onSelectionChanged={onSelectionChanged}
           onRowClicked={onRowClicked}
+          onPaginationChanged={handlePaginationChanged}
           getRowClass={getRowClass}
           onGridReady={handleGridReady}
           loading={loading}
           overlayNoRowsTemplate={overlayNoRowsTemplate}
           suppressCellFocus
+          enableBrowserTooltips
           quickFilterText={quickFilter}
           rowHeight={52}
           headerHeight={48}

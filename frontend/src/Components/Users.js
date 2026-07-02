@@ -93,6 +93,13 @@ function Users({ searchText = "" }) {
             status: activeUser.status || (activeUser.enabled ? "Active" : "Inactive"),
           }
         : null,
+      auditEntity: activeUser
+        ? {
+            type: "user",
+            id: activeUser.id,
+            label: activeUser.username,
+          }
+        : null,
     });
   }, [filteredUsers.length, selectedIds.length, activeUser, setInsight]);
 
@@ -221,6 +228,34 @@ function Users({ searchText = "" }) {
     setAddForm(emptyAddForm);
   };
 
+  const reportEmailStatus = (emailStatus, actionLabel = "Action") => {
+    if (!emailStatus) return;
+
+    if (!emailStatus.smtp_configured) {
+      feedback.warning(
+        `${actionLabel} completed, but email is not configured. Copy backend/.env.example to backend/.env and set SMTP_PASSWORD (Gmail app password).`
+      );
+      return;
+    }
+
+    if (emailStatus.admin_notified === false || emailStatus.welcome_sent === false) {
+      const detail = emailStatus.error
+        ? ` ${emailStatus.error}`
+        : "";
+      if (emailStatus.admin_notified === false) {
+        feedback.warning(
+          `${actionLabel} completed, but the admin notification email could not be sent.${detail}`
+        );
+      }
+      if (emailStatus.welcome_sent === false) {
+        feedback.warning(
+          `${actionLabel} completed, but the welcome email to the new user could not be sent.${detail}`
+        );
+      }
+      return;
+    }
+  };
+
   const saveUser = async () => {
     if (!addForm.username.trim() || !addForm.email.trim()) {
       feedback.error("Username and email are required.");
@@ -229,7 +264,7 @@ function Users({ searchText = "" }) {
 
     setSaving(true);
     try {
-      await apiClient.post("/users", {
+      const res = await apiClient.post("/users", {
         username: addForm.username.trim(),
         firstName: addForm.firstName.trim() || undefined,
         lastName: addForm.lastName.trim() || undefined,
@@ -237,6 +272,10 @@ function Users({ searchText = "" }) {
       });
       await fetchUsers();
       closeAddModal();
+      reportEmailStatus(res.data?.email_status, "User created");
+      if (res.data?.email_status?.welcome_sent) {
+        feedback.success(`Welcome email sent to ${addForm.email.trim()}.`);
+      }
     } catch (err) {
       console.error(err);
       feedback.error(err.response?.data?.detail || "Failed to add user");
@@ -250,13 +289,14 @@ function Users({ searchText = "" }) {
 
     setSaving(true);
     try {
-      await apiClient.put(`/users/${actionUser.id}`, {
+      const res = await apiClient.put(`/users/${actionUser.id}`, {
         firstName: editForm.firstName.trim(),
         lastName: editForm.lastName.trim(),
         email: editForm.email.trim(),
       });
       await fetchUsers();
       closeActionDialog();
+      reportEmailStatus(res.data?.email_status, "User updated");
     } catch (err) {
       console.error(err);
       feedback.error(err.response?.data?.detail || "Failed to update user.");
@@ -280,11 +320,12 @@ function Users({ searchText = "" }) {
 
     setSaving(true);
     try {
-      await apiClient.put(`/users/${actionUser.id}`, {
+      const res = await apiClient.put(`/users/${actionUser.id}`, {
         password: passwordForm.password.trim(),
       });
       await fetchUsers();
       closeActionDialog();
+      reportEmailStatus(res.data?.email_status, "Password reset");
       feedback.success("Password updated successfully.");
     } catch (err) {
       console.error(err);
@@ -304,11 +345,12 @@ function Users({ searchText = "" }) {
 
     setSaving(true);
     try {
-      await apiClient.put(`/users/${actionUser.id}`, {
+      const res = await apiClient.put(`/users/${actionUser.id}`, {
         email: emailForm.email.trim(),
       });
       await fetchUsers();
       closeActionDialog();
+      reportEmailStatus(res.data?.email_status, "Email reset");
     } catch (err) {
       console.error(err);
       feedback.error(err.response?.data?.detail || "Failed to reset email.");
@@ -322,11 +364,12 @@ function Users({ searchText = "" }) {
 
     setSaving(true);
     try {
-      await apiClient.put(`/users/${actionUser.id}`, {
+      const res = await apiClient.put(`/users/${actionUser.id}`, {
         enabled: statusForm.status === "Active",
       });
       await fetchUsers();
       closeActionDialog();
+      reportEmailStatus(res.data?.email_status, "Status change");
     } catch (err) {
       console.error(err);
       feedback.error(err.response?.data?.detail || "Failed to change status.");
@@ -434,7 +477,8 @@ function Users({ searchText = "" }) {
           <div className="modal modal-user">
             <h3>Add User</h3>
             <p className="user-modal-intro">
-              New users are created as Active, assigned to user-group, and receive a temporary password.
+              New users are created as Active, assigned to user-group, and receive a welcome email to set their
+              password. You will also receive an admin notification email.
             </p>
 
             <div className="user-modal-form">

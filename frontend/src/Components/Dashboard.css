@@ -8,6 +8,7 @@ html,
 body,
 #root {
   height: 100%;
+  overflow: hidden;
 }
 
 /* MAIN LAYOUT */
@@ -651,6 +652,60 @@ body,
   flex-shrink: 0;
 }
 
+.page-breadcrumbs-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page-breadcrumbs-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-breadcrumbs-link,
+.page-breadcrumbs-text,
+.page-breadcrumbs-current {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.page-breadcrumbs-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--tv-brand);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-breadcrumbs-link:hover {
+  color: var(--tv-brand-dark);
+  text-decoration: underline;
+}
+
+.page-breadcrumbs-text {
+  color: var(--tv-text-muted);
+  font-weight: 500;
+}
+
+.page-breadcrumbs-current {
+  color: var(--tv-text);
+  font-weight: 700;
+}
+
+.page-breadcrumbs-sep {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
 .page-content {
   display: flex;
   flex-direction: column;
@@ -665,6 +720,78 @@ body,
 
 .page-content--solo {
   max-width: 1320px;
+}
+
+.page-content--full {
+  max-width: none;
+}
+
+.page-main--fill {
+  overflow: hidden;
+}
+
+.center--doc-editor {
+  padding: 0;
+  background: var(--tv-surface);
+}
+
+.page-content--doc-editor {
+  max-width: none;
+  flex: 1;
+}
+
+.page-content--doc-editor .page-header {
+  margin: 0;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--tv-border);
+  background: var(--tv-surface);
+}
+
+.page-content--doc-editor.page-content--solo .page-header {
+  margin-bottom: 0;
+}
+
+.page-content--doc-editor .page-body {
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.page-content--doc-editor .page-main {
+  margin: 0;
+  padding: 0;
+}
+
+.center--builder {
+  padding: 0;
+  background: var(--tv-surface);
+}
+
+.page-content--builder {
+  max-width: none;
+  flex: 1;
+}
+
+.page-content--builder .page-header {
+  margin: 0;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--tv-border);
+  background: var(--tv-surface);
+}
+
+.page-content--builder.page-content--solo .page-header {
+  margin-bottom: 0;
+}
+
+.page-content--builder .page-body {
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.page-content--builder .page-main {
+  margin: 0;
+  padding: 0;
 }
 
 .page-content--solo .page-header {
@@ -697,52 +824,89 @@ body,
 .page-main--scroll {
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.page-main--scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .page-main--dashboard.page-main--scroll {
   overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
 }
 
-.page-main--dashboard.page-main--scroll::-webkit-scrollbar {
-  display: block;
-  width: 8px;
-}
-
-.page-main--dashboard.page-main--scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
-}
-
-.page-main--dashboard.page-main--scroll::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.page-insight-shell {
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
 }
 
 .page-insight {
   width: 280px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  border-left: 1px solid var(--tv-border);
+  background: transparent;
+  overflow: hidden;
+}
+
+.page-insight--form-builder {
+  width: min(320px, 34vw);
+}
+
+.page-insight-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   flex-shrink: 0;
+  padding: 16px 16px 8px;
+}
+
+.page-insight-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px;
-  border-left: 1px solid var(--tv-border);
-  background: transparent;
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .page-insight-header h3 {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--tv-text);
-  margin-bottom: 8px;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.page-insight-back-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--tv-border);
+  border-radius: var(--tv-radius-sm);
+  background: var(--tv-surface);
+  color: var(--tv-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-insight-back-btn:hover {
+  color: var(--tv-text);
+  border-color: #cbd5e1;
+  background: var(--tv-surface-muted);
+}
+
+.page-insight-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .page-insight-status {
@@ -905,6 +1069,25 @@ body,
   min-height: 200px;
 }
 
+.page-insight .doc-file-preview {
+  margin-top: 8px;
+}
+
+.page-insight .doc-file-preview-frame {
+  min-height: 240px;
+}
+
+.page-insight .doc-file-preview-image {
+  max-height: 220px;
+}
+
+.page-insight-audit-target {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--tv-text-muted);
+}
+
 .page-insight-references {
   list-style: none;
   display: flex;
@@ -1032,6 +1215,11 @@ body,
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.grid-page > .app-data-grid-wrap {
+  flex: 1;
+  min-height: 0;
 }
 
 /* TOOLBAR */
@@ -1303,6 +1491,14 @@ body,
   font-size: 0.875rem;
 }
 
+/* Pinned column sections can render duplicate horizontal scrollbars. */
+.app-data-grid .ag-pinned-left-cols-viewport,
+.app-data-grid .ag-pinned-left-header,
+.app-data-grid .ag-pinned-right-cols-viewport,
+.app-data-grid .ag-pinned-right-header {
+  overflow-x: hidden;
+}
+
 .footer-center {
   justify-content: center;
   flex: 1;
@@ -1376,6 +1572,19 @@ body,
   gap: 0;
 }
 
+.app-data-grid-wrap > .app-data-grid.app-data-grid--fill {
+  flex: 1;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-data-grid-wrap > .app-data-grid.app-data-grid--fill .ag-root-wrapper {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
 .grid-table-toolbar {
   display: flex;
   align-items: center;
@@ -1385,7 +1594,6 @@ body,
   flex-shrink: 0;
   min-height: 40px;
   overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .grid-table-toolbar input,
@@ -1561,11 +1769,14 @@ body,
     overflow-y: auto;
   }
 
+  .page-insight-shell {
+    max-height: 40vh;
+    min-height: 200px;
+  }
+
   .page-insight {
     width: 100%;
     border-left: none;
     border-top: 1px solid var(--tv-border);
-    padding-top: 16px;
-    max-height: 240px;
   }
 }

@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from schemas.document import DocumentCreate, DocumentUpdate
 from services.doc_service import DocService
 from services.workflow_service import WorkflowService
+from services.audit_service import AuditService
 from constants.workflow import ENTITY_DOC
+from constants.audit import ACTION_CREATED, ACTION_UPDATED, ACTION_DELETED
 from routes.auth import get_current_user
 from utils.display import actor_display
 
@@ -107,6 +109,22 @@ def update_doc(doc_id: int, doc: DocumentUpdate, current_user: dict = Depends(ge
         updated = DocService.update_doc(doc_id, merged)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    changes = AuditService.summarize_changes(
+        existing,
+        merged,
+        ["dname", "ddesc", "dtype", "drev", "dstatus", "dapprover", "deffective"],
+    )
+    AuditService.log(
+        entity_type=ENTITY_DOC,
+        entity_id=doc_id,
+        action=ACTION_UPDATED,
+        actor=current_user,
+        entity_label=existing.get("dname"),
+        revision=merged.get("drev"),
+        summary="Document updated",
+        changes=changes or None,
+    )
     return {
         **updated,
         "updated_by": actor,
@@ -126,6 +144,16 @@ def delete_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
         result = DocService.delete_doc(doc_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    AuditService.log(
+        entity_type=ENTITY_DOC,
+        entity_id=doc_id,
+        action=ACTION_DELETED,
+        actor=current_user,
+        entity_label=existing.get("dname"),
+        revision=existing.get("drev"),
+        summary="Document deleted",
+    )
     return {
         **result,
         "deleted_by": actor,

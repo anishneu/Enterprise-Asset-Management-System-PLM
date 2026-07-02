@@ -13,6 +13,15 @@ class PartService:
         conn.close()
         return data
 
+    @staticmethod
+    def get_part(part_id):
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM parttb WHERE id=%s", (part_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return row
+
     # ================= ADD =================
     @staticmethod
     def add_part(part):
@@ -30,10 +39,17 @@ class PartService:
             part["prev"]
         ))
 
+        part_id = cursor.lastrowid
         conn.commit()
         conn.close()
 
-        return {"message": "Part added successfully"}
+        return {
+            "message": "Part added successfully",
+            "id": part_id,
+            "partno": part["partno"],
+            "pdesc": part["pdesc"],
+            "prev": part["prev"],
+        }
 
     # ================= UPDATE =================
     @staticmethod
@@ -57,7 +73,13 @@ class PartService:
         conn.commit()
         conn.close()
 
-        return {"message": "Part updated successfully"}
+        return {
+            "message": "Part updated successfully",
+            "id": part_id,
+            "partno": part["partno"],
+            "pdesc": part["pdesc"],
+            "prev": part["prev"],
+        }
 
     # ================= DELETE =================
     @staticmethod

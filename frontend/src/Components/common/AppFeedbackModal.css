@@ -10,6 +10,10 @@
   color: #15803d;
 }
 
+.app-feedback-modal--warning h3 {
+  color: #b45309;
+}
+
 .app-feedback-message {
   margin: 0 0 16px;
   color: var(--tv-text-muted);

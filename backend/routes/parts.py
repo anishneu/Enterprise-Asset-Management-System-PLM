@@ -1,24 +1,71 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from constants.audit import ENTITY_PART, ACTION_CREATED, ACTION_UPDATED, ACTION_DELETED
+from routes.auth import get_current_user
+from services.audit_service import AuditService
 from services.part_service import PartService
 
-router = APIRouter(prefix="/api/parts", tags=["Parts"])
+router = APIRouter(
+    prefix="/api/parts",
+    tags=["Parts"],
+    dependencies=[Depends(get_current_user)],
+)
+
 
 @router.get("/")
-def get_parts():
+def get_parts(current_user: dict = Depends(get_current_user)):
     return PartService.get_all_parts()
 
-# ADD
+
 @router.post("/")
-def add_part(part: dict):
-    return PartService.add_part(part)
+def add_part(part: dict, current_user: dict = Depends(get_current_user)):
+    created = PartService.add_part(part)
+    AuditService.log(
+        entity_type=ENTITY_PART,
+        entity_id=created.get("id"),
+        action=ACTION_CREATED,
+        actor=current_user,
+        entity_label=created.get("partno"),
+        summary="Part created",
+    )
+    return created
 
-# UPDATE
+
 @router.put("/{part_id}")
-def update_part(part_id: int, part: dict):
-    return PartService.update_part(part_id, part)
+def update_part(part_id: int, part: dict, current_user: dict = Depends(get_current_user)):
+    existing = PartService.get_part(part_id)
+    if not existing:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Part not found")
 
-# DELETE
+    updated = PartService.update_part(part_id, part)
+    changes = AuditService.summarize_changes(existing, updated, list(part.keys()))
+    AuditService.log(
+        entity_type=ENTITY_PART,
+        entity_id=part_id,
+        action=ACTION_UPDATED,
+        actor=current_user,
+        entity_label=existing.get("partno"),
+        summary="Part updated",
+        changes=changes or None,
+    )
+    return updated
+
+
 @router.delete("/{part_id}")
-def delete_part(part_id: int):
-    return PartService.delete_part(part_id)
+def delete_part(part_id: int, current_user: dict = Depends(get_current_user)):
+    existing = PartService.get_part(part_id)
+    if not existing:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Part not found")
 
+    result = PartService.delete_part(part_id)
+    AuditService.log(
+        entity_type=ENTITY_PART,
+        entity_id=part_id,
+        action=ACTION_DELETED,
+        actor=current_user,
+        entity_label=existing.get("partno"),
+        summary="Part deleted",
+    )
+    return result

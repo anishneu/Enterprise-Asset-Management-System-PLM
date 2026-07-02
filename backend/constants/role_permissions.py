@@ -22,7 +22,13 @@ ROLE_PERMISSIONS = {
         "USER_EDIT",
         "GROUP_VIEW",
     ],
-    "USER": [
+    "USER_VIEW": [
+        "DOC_VIEW",
+    ],
+    "USER_DEVELOPER": [
+        "DOC_CREATE",
+        "DOC_EDIT",
+        "DOC_DELETE",
         "DOC_VIEW",
     ],
 }

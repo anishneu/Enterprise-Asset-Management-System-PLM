@@ -2,6 +2,7 @@ import secrets
 
 from keycloak import KeycloakAdmin
 
+from config import KEYCLOAK_CLIENT_ID, KEYCLOAK_REALM
 from constants.role_permissions import (
     ASSIGNABLE_ROLES,
     normalize_role_name,
@@ -116,7 +117,45 @@ def create_user(
     default_group_id = ensure_default_user_group()
     keycloak_admin.group_user_add(user_id, default_group_id)
 
-    return user_id
+    return {
+        "id": user_id,
+        "temporary_password": generated_password if temporary else None,
+    }
+
+
+def send_welcome_user_email(user_id: str) -> None:
+    keycloak_admin.send_update_account(
+        user_id,
+        payload=["UPDATE_PASSWORD"],
+        client_id=KEYCLOAK_CLIENT_ID,
+    )
+
+
+def get_realm_smtp_settings() -> dict | None:
+    realm = keycloak_admin.get_realm(KEYCLOAK_REALM) or {}
+    smtp = realm.get("smtpServer") or {}
+    host = (smtp.get("host") or "").strip()
+    if not host:
+        return None
+
+    def _as_bool(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        return str(value).lower() == "true"
+
+    user = (smtp.get("user") or "").strip()
+    password = smtp.get("password") or ""
+    from_address = (smtp.get("from") or user or "").strip()
+
+    return {
+        "host": host,
+        "port": int(smtp.get("port") or 587),
+        "user": user,
+        "password": password,
+        "from": from_address,
+        "use_tls": _as_bool(smtp.get("starttls")),
+        "use_ssl": _as_bool(smtp.get("ssl")),
+    }
 
 
 def update_user(

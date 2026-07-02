@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import apiClient from "../api/client";
 
 import AppDataGrid from "./common/AppDataGrid";
 import { createEditColumn, multiRowSelection } from "./common/gridHelpers";
@@ -8,8 +8,6 @@ import { filterBySearch } from "../utils/filterBySearch";
 import { useAppFeedback } from "../context/AppFeedbackContext";
 
 import jsPDF from "jspdf";
-
-const API_BASE = "http://127.0.0.1:8000/api/parts";
 
 const emptyPart = {
   id: null,
@@ -41,12 +39,20 @@ function Parts({ searchText = "" }) {
     [parts, searchText]
   );
 
+  const activePart = useMemo(
+    () =>
+      selectedIds.length === 1
+        ? parts.find((part) => Number(part.id) === selectedIds[0]) || null
+        : null,
+    [parts, selectedIds]
+  );
+
   const rowSelection = useMemo(() => multiRowSelection, []);
 
   const fetchParts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/`);
+      const res = await apiClient.get("/parts/");
       setParts(res.data);
     } catch (err) {
       console.error(err);
@@ -67,8 +73,16 @@ function Parts({ searchText = "" }) {
       extra: {
         Tab: activeTab === "summary" ? "Summary" : "Details",
       },
+      auditEntity: activePart
+        ? {
+            type: "part",
+            id: activePart.id,
+            label: activePart.partno,
+            revision: activePart.prev || null,
+          }
+        : null,
     });
-  }, [filteredParts.length, selectedIds.length, activeTab, setInsight]);
+  }, [filteredParts.length, selectedIds.length, activeTab, activePart, setInsight]);
 
   const getPartId = (part) => Number(part.id);
 
@@ -111,9 +125,9 @@ function Parts({ searchText = "" }) {
     setSaving(true);
     try {
       if (formPart.id) {
-        await axios.put(`${API_BASE}/${formPart.id}`, payload);
+        await apiClient.put(`/parts/${formPart.id}`, payload);
       } else {
-        await axios.post(`${API_BASE}/`, payload);
+        await apiClient.post("/parts/", payload);
       }
 
       await fetchParts();
@@ -139,7 +153,7 @@ function Parts({ searchText = "" }) {
 
     try {
       await Promise.all(
-        selectedIds.map((id) => axios.delete(`${API_BASE}/${id}`))
+        selectedIds.map((id) => apiClient.delete(`/parts/${id}`))
       );
       clearSelection();
       await fetchParts();

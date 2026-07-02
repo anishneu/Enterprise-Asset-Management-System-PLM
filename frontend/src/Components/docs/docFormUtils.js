@@ -1,3 +1,6 @@
+import DocFileField from "./DocFileField";
+import { isFileFieldValue, normalizeLegacyFileValue } from "./docFileUtils";
+
 export function parseFormTemplate(fmjson) {
   if (!fmjson) return { name: "", fields: [] };
 
@@ -12,13 +15,51 @@ export function parseFormTemplate(fmjson) {
   }
 }
 
+function defaultFieldValue(field) {
+  if (field.type === "checkbox") return false;
+  if (field.type === "file") return null;
+  return "";
+}
+
 export function buildFieldValues(fields, valuesById) {
   return fields.map((field) => ({
     id: field.id,
     label: field.label,
     type: field.type,
-    value: valuesById[field.id] ?? "",
+    custom: Boolean(field.custom),
+    value: valuesById[field.id] ?? defaultFieldValue(field),
   }));
+}
+
+export function getDocAttachments(doc) {
+  const attachments = doc?.fielddata?.attachments;
+  return Array.isArray(attachments) ? attachments : [];
+}
+
+export function getDocCustomFields(doc) {
+  const entries = getDocFieldEntries(doc);
+  const customFields = doc?.fielddata?.customFields;
+
+  if (Array.isArray(customFields) && customFields.length > 0) {
+    return customFields.map((field) => {
+      const saved = entries.find((entry) => entry.id === field.id);
+      return {
+        ...field,
+        value: saved?.value ?? defaultFieldValue(field),
+      };
+    });
+  }
+
+  return entries.filter((entry) => entry.custom);
+}
+
+export function isFieldValueFilled(field, value) {
+  if (field.type === "checkbox") return Boolean(value);
+  if (field.type === "file") {
+    if (isFileFieldValue(value)) return Boolean(value.dataUrl || value.legacy);
+    return Boolean(normalizeLegacyFileValue(value));
+  }
+  return value !== null && value !== undefined && String(value).trim() !== "";
 }
 
 export function DocFormRenderer({ fields, values, onChange, readOnly = false }) {
@@ -29,8 +70,13 @@ export function DocFormRenderer({ fields, values, onChange, readOnly = false }) 
 
   return (
     <div className="doc-form-fields">
+      {fields.length === 0 ? (
+        <p className="doc-form-empty">This form has no fields yet. You can still save the document and add attachments.</p>
+      ) : null}
       {fields.map((field) => {
-        const value = values[field.id] ?? "";
+        const value =
+          values[field.id] ??
+          (field.type === "checkbox" ? false : field.type === "file" ? null : "");
         const common = {
           className: "doc-form-control",
           disabled: readOnly,
@@ -109,20 +155,13 @@ export function DocFormRenderer({ fields, values, onChange, readOnly = false }) 
             );
           case "file":
             return (
-              <label key={field.id} className="doc-form-field">
-                <span className="doc-form-label">
-                  {field.label}
-                  {field.required && <span className="doc-form-required">*</span>}
-                </span>
-                <input
-                  type="file"
-                  className="doc-form-control doc-form-control-file"
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    handleChange(field.id, e.target.files?.[0]?.name || "")
-                  }
-                />
-              </label>
+              <DocFileField
+                key={field.id}
+                field={field}
+                value={value}
+                readOnly={readOnly}
+                onChange={(nextValue) => handleChange(field.id, nextValue)}
+              />
             );
           case "hyperlink":
             return (
@@ -184,6 +223,10 @@ export function resolveDocDescription(doc) {
 
 export function formatFieldValue(value) {
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (isFileFieldValue(value)) return value.fileName || "—";
+  if (value && typeof value === "object" && value.fileName) {
+    return value.fileName;
+  }
   if (value === null || value === undefined || value === "") return "—";
   return String(value);
 }

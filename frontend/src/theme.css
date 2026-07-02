@@ -38,4 +38,13 @@
   --tv-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --tv-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
   --tv-shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.12);
+
+  --tv-scrollbar-size: 8px;
+  --tv-scrollbar-size-sm: 6px;
+  --tv-scrollbar-thumb: #cbd5e1;
+  --tv-scrollbar-thumb-hover: #94a3b8;
+  --tv-scrollbar-track: #f1f5f9;
+  --tv-scrollbar-thumb-inverse: #475569;
+  --tv-scrollbar-thumb-inverse-hover: #64748b;
+  --tv-scrollbar-track-inverse: rgba(15, 23, 42, 0.45);
 }

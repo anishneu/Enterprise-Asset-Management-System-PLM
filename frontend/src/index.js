@@ -4,6 +4,7 @@ import './theme.css';
 import './index.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
+import './styles/scrollbars.css';
 import './agGridSetup';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
