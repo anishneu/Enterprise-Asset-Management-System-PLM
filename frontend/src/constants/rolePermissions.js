@@ -1,0 +1,188 @@
+export const ROLE_PRIORITY = ["SUPERADMIN", "ADMIN", "HR", "DEVELOPER", "USER"];
+
+// Keycloak realm role name → app permission tier
+const KEYCLOAK_ROLE_ALIASES = {
+  SUPERADMIN: "SUPERADMIN",
+  ADMIN: "ADMIN",
+  HR: "HR",
+  USER_DEVELOPER: "DEVELOPER",
+  USER_VIEW: "USER",
+};
+
+export const ROLE_PERMISSIONS = {
+  SUPERADMIN: [
+    "USER_VIEW",
+    "USER_CREATE",
+    "USER_EDIT",
+    "USER_DELETE",
+    "GROUP_VIEW",
+    "GROUP_CREATE",
+    "GROUP_EDIT",
+    "GROUP_DELETE",
+    "DOC_VIEW",
+    "DOC_CREATE",
+    "DOC_EDIT",
+    "DOC_DELETE",
+    "FORM_VIEW",
+    "FORM_CREATE",
+    "FORM_EDIT",
+    "FORM_DELETE",
+    "PART_VIEW",
+    "PART_CREATE",
+    "PART_EDIT",
+    "PART_DELETE",
+    "AR_VIEW",
+    "AR_CREATE",
+    "AR_EDIT",
+    "AR_DELETE",
+    "AR_APPROVE",
+    "AR_REJECT",
+    "RECORD_VIEW",
+    "RECORD_CREATE",
+    "RECORD_EDIT",
+    "RECORD_DELETE",
+    "RECORD_APPROVE",
+    "RECORD_REJECT",
+    "ADMIN_MENU",
+    "SYSTEM_CONFIGURATION",
+    "COMPANY_SETTINGS",
+    "ROLE_MANAGEMENT",
+    "SUPERADMIN",
+  ],
+  ADMIN: [
+    "USER_VIEW",
+    "USER_CREATE",
+    "USER_EDIT",
+    "USER_DELETE",
+    "GROUP_VIEW",
+    "GROUP_CREATE",
+    "GROUP_EDIT",
+    "GROUP_DELETE",
+    "DOC_VIEW",
+    "DOC_CREATE",
+    "DOC_EDIT",
+    "DOC_DELETE",
+    "FORM_VIEW",
+    "FORM_CREATE",
+    "FORM_EDIT",
+    "FORM_DELETE",
+    "PART_VIEW",
+    "PART_CREATE",
+    "PART_EDIT",
+    "PART_DELETE",
+    "AR_VIEW",
+    "AR_CREATE",
+    "AR_EDIT",
+    "AR_DELETE",
+    "AR_APPROVE",
+    "AR_REJECT",
+    "RECORD_VIEW",
+    "RECORD_CREATE",
+    "RECORD_EDIT",
+    "RECORD_DELETE",
+    "RECORD_APPROVE",
+    "RECORD_REJECT",
+    "ADMIN_MENU",
+    "SYSTEM_CONFIGURATION",
+    "COMPANY_SETTINGS",
+    "ROLE_MANAGEMENT",
+  ],
+  HR: [
+    "USER_VIEW",
+    "USER_CREATE",
+    "USER_EDIT",
+    "USER_DELETE",
+    "GROUP_VIEW",
+    "GROUP_CREATE",
+    "GROUP_EDIT",
+    "GROUP_DELETE",
+    "DOC_VIEW",
+    "DOC_CREATE",
+    "DOC_EDIT",
+    "DOC_DELETE",
+    "FORM_VIEW",
+    "FORM_CREATE",
+    "FORM_EDIT",
+    "FORM_DELETE",
+    "PART_VIEW",
+    "PART_CREATE",
+    "PART_EDIT",
+    "PART_DELETE",
+    "AR_VIEW",
+    "AR_CREATE",
+    "AR_EDIT",
+    "AR_DELETE",
+    "AR_APPROVE",
+    "AR_REJECT",
+    "RECORD_VIEW",
+    "RECORD_CREATE",
+    "RECORD_EDIT",
+    "RECORD_DELETE",
+    "RECORD_APPROVE",
+    "RECORD_REJECT",
+    "ADMIN_MENU",
+    "SYSTEM_CONFIGURATION",
+    "COMPANY_SETTINGS",
+    "ROLE_MANAGEMENT",
+  ],
+  DEVELOPER: [
+    "USER_VIEW",
+    "GROUP_VIEW",
+    "DOC_VIEW",
+    "DOC_CREATE",
+    "DOC_EDIT",
+    "DOC_DELETE",
+    "FORM_VIEW",
+    "FORM_CREATE",
+    "FORM_EDIT",
+    "FORM_DELETE",
+    "PART_VIEW",
+    "PART_CREATE",
+    "PART_EDIT",
+    "PART_DELETE",
+    "AR_VIEW",
+    "AR_CREATE",
+    "AR_EDIT",
+    "AR_DELETE",
+    "AR_APPROVE",
+    "AR_REJECT",
+    "RECORD_VIEW",
+    "RECORD_CREATE",
+    "RECORD_EDIT",
+    "RECORD_DELETE",
+    "RECORD_APPROVE",
+    "RECORD_REJECT",
+  ],
+  USER: [
+    "USER_VIEW",
+    "GROUP_VIEW",
+    "DOC_VIEW",
+    "FORM_VIEW",
+    "PART_VIEW",
+    "AR_VIEW",
+    "RECORD_VIEW",
+  ],
+};
+
+export const DEFAULT_USER_GROUP = "user-group";
+
+export function normalizeRoleName(name) {
+  const raw = String(name || "")
+    .trim()
+    .toUpperCase()
+    .replace(/-/g, "_")
+    .replace(/ /g, "_");
+  return KEYCLOAK_ROLE_ALIASES[raw] || raw;
+}
+
+export function resolvePrimaryRole(realmRoles = []) {
+  const resolved = new Set(realmRoles.map(normalizeRoleName));
+  for (const role of ROLE_PRIORITY) {
+    if (resolved.has(role)) return role;
+  }
+  return "USER";
+}
+
+export function permissionsForRole(role) {
+  return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.USER;
+}

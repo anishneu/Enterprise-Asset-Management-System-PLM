@@ -1,46 +1,23 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useState } from "react";
 
-import Login from "./Components/Login";
-import Register from "./Components/Register";
 import Dashboard from "./Components/Dashboard";
+// import Register from "./Components/Register";
+// import Login from "./Components/Login";
+
+import { AppFeedbackProvider } from "./context/AppFeedbackContext";
+import { ProfileProvider } from "./context/ProfileContext";
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-  }
-
   return (
-    <div>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            isLoggedIn ? (
-              <Navigate to="/Dashboard" />
-            ) : (
-              <Login setIsLoggedIn={setIsLoggedIn} />
-            )
-          }
-        />
-
-        <Route path="/register" element={<Register />} />
-
-        <Route
-          path="/Dashboard"
-          element={
-            isLoggedIn ? (
-              <Dashboard onLogout={handleLogout} />
-            ) : (
-              <Navigate to="/" />
-            )
-          }
-        />
-
-      </Routes>
-    </div>
+    <AppFeedbackProvider>
+      <ProfileProvider>
+        <Routes>
+          <Route path="/" element={<Navigate to="/Dashboard" />} />
+          {/* <Route path="/register" element={<Register />} /> */}
+          <Route path="/Dashboard" element={<Dashboard />} />
+        </Routes>
+      </ProfileProvider>
+    </AppFeedbackProvider>
   );
 }
 

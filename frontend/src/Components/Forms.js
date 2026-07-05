@@ -1,424 +1,1033 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import apiClient from "../api/client";
+import keycloak from "../keycloak";
+import FormBuilderDesigner from "./forms/FormBuilderDesigner";
+import AppDataGrid from "./common/AppDataGrid";
+import FormNameCellRenderer from "./common/FormNameCellRenderer";
+import FormDetailRowRenderer from "./common/FormDetailRowRenderer";
+import FormSavedActionsCellRenderer from "./common/FormSavedActionsCellRenderer";
+import { multiRowSelection } from "./common/gridHelpers";
+import {
+  createFieldFromPalette,
+  normalizeFormField,
+} from "./forms/formBuilderConstants";
+import WorkflowStatusBadge from "./common/WorkflowStatusBadge";
+import SubmitReviewDrawer from "./common/SubmitReviewDrawer";
+import { usePageInsight } from "./dashboard/PageInsightContext";
+import { filterBySearch } from "../utils/filterBySearch";
+import { formatKeycloakOwner, formatStoredOwner } from "../utils/ownerDisplay";
+import { DEFAULT_FORM_TYPES } from "../constants/documentCatalog";
+import { canSendToReview, canEdit, canDelete, canRevise, INITIAL_WORKFLOW_STATUS } from "../constants/workflowCatalog";
+import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
+import { nextRevision, revisionHelpText } from "../utils/revisionUtils";
+import { parseFormTemplate, formatWorkflowDate } from "./docs/docFormUtils";
 
 import {
   DndContext,
-  useDraggable,
-  useDroppable,
+  DragOverlay,
   closestCenter,
 } from "@dnd-kit/core";
 
-function Forms() {
+import "./Forms.css";
+import "./Docs.css";
 
+function JsonViewerDrawer({ drawer, onClose, onCollapse, onExpand }) {
+  if (!drawer.open) return null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(drawer.content);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (drawer.collapsed) {
+    return (
+      <button
+        type="button"
+        className="forms-json-tab"
+        onClick={onExpand}
+        aria-label="Expand JSON panel"
+        title="Show JSON"
+      >
+        <span className="forms-json-tab-label">JSON</span>
+        <span className="forms-json-tab-chevron" aria-hidden="true">
+          ‹
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="forms-json-backdrop"
+        aria-label="Close JSON panel"
+        onClick={onClose}
+      />
+      <aside className="forms-json-drawer" aria-label="Form JSON viewer">
+        <header className="forms-json-header">
+          <div>
+            <h3>{drawer.title}</h3>
+            <p className="forms-muted">Form JSON</p>
+          </div>
+          <div className="forms-json-header-actions">
+            <button
+              type="button"
+              className="forms-icon-btn"
+              onClick={onCollapse}
+              aria-label="Collapse panel"
+              title="Collapse"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              className="forms-icon-btn"
+              onClick={onClose}
+              aria-label="Close panel"
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
+        </header>
+
+        <div className="forms-json-body">
+          <button type="button" className="parts-btn" onClick={handleCopy}>
+            Copy
+          </button>
+          <pre className="forms-json-content">{drawer.content}</pre>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function Forms({ searchText = "", view = "all" }) {
+  const showBuilder = view === "all" || view === "builder";
+  const showSaved = view === "all" || view === "saved";
   const [formsOpen, setFormsOpen] = useState([]);
+  const [formTypes, setFormTypes] = useState([]);
+  const [formTypesLoading, setFormTypesLoading] = useState(false);
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState("");
+  const [formRevision, setFormRevision] = useState("");
+  const [expandedFormId, setExpandedFormId] = useState(null);
+  const [selectedFormIds, setSelectedFormIds] = useState([]);
+  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
+  const [reviewApprover, setReviewApprover] = useState("");
+  const [reviewEffectiveDate, setReviewEffectiveDate] = useState("");
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [fields, setFields] = useState([]);
   const [previewMode, setPreviewMode] = useState(false);
-
   const [selectedFieldId, setSelectedFieldId] = useState(null);
-  const selectedField = fields.find((f) => f.id === selectedFieldId);
+  const [activeDragField, setActiveDragField] = useState(null);
+  const [jsonDrawer, setJsonDrawer] = useState({
+    open: false,
+    collapsed: false,
+    title: "",
+    content: "",
+  });
+  const [editingFormId, setEditingFormId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState(null);
+  const [reviseDialog, setReviseDialog] = useState(null);
+  const [revising, setRevising] = useState(false);
+  const builderRef = useRef(null);
+  const gridApiRef = useRef(null);
+  const { setInsight } = usePageInsight();
+  const feedback = useAppFeedback();
+  const permission = usePermission();
 
+  const showBuilderPanel = showBuilder || editingFormId !== null;
+  const showSavedTable = showSaved && editingFormId === null;
+
+  const selectedField = useMemo(
+    () => fields.find((f) => f.id === selectedFieldId) || null,
+    [fields, selectedFieldId]
+  );
+
+  const filteredSavedForms = useMemo(
+    () =>
+      filterBySearch(formsOpen, searchText, [
+        "fmname",
+        "ftype",
+        "fmrev",
+        "fmstatus",
+        "fmlink",
+        "fowner",
+        "updated",
+      ]),
+    [formsOpen, searchText]
+  );
+
+  const selectedAuditForm = useMemo(() => {
+    if (selectedFormIds.length !== 1) return null;
+    return formsOpen.find((form) => form.id === selectedFormIds[0]) || null;
+  }, [formsOpen, selectedFormIds]);
 
   useEffect(() => {
     fetchForms();
+    fetchFormTypes();
+    if (showSaved) {
+      fetchUsers();
+    }
+  }, [showSaved]);
+
+  const cancelEditForm = useCallback(() => {
+    setEditingFormId(null);
+    setFormName("");
+    setFormType("");
+    setFormRevision("");
+    setFields([]);
+    setSelectedFieldId(null);
+    setPreviewMode(false);
   }, []);
+
+  useEffect(() => {
+    if (view === "builder") {
+      setInsight({
+        hideInsightPanel: true,
+        hidePageHeader: false,
+        breadcrumbs: null,
+        formsEditorActive: false,
+      });
+      return () => {
+        setInsight({
+          hideInsightPanel: false,
+          hidePageHeader: false,
+          breadcrumbs: null,
+          formsEditorActive: false,
+        });
+      };
+    }
+
+    if (editingFormId) {
+      setInsight({
+        hideInsightPanel: true,
+        hidePageHeader: false,
+        formsEditorActive: true,
+        breadcrumbs: [
+          { label: "Saved Forms", onClick: cancelEditForm },
+          { label: formName.trim() || "Form" },
+          { label: "Edit" },
+        ],
+      });
+      return;
+    }
+
+    setInsight({
+      recordCount: filteredSavedForms.length,
+      selectedCount: selectedFormIds.length,
+      hideInsightPanel: false,
+      hidePageHeader: false,
+      breadcrumbs: null,
+      formsEditorActive: false,
+      extra: {
+        Records: filteredSavedForms.length,
+      },
+      auditEntity: selectedAuditForm
+        ? {
+            type: "form",
+            id: selectedAuditForm.id,
+            label: selectedAuditForm.fmname,
+            revision: selectedAuditForm.fmrev || null,
+          }
+        : null,
+    });
+  }, [
+    view,
+    editingFormId,
+    formName,
+    filteredSavedForms.length,
+    selectedFormIds.length,
+    selectedAuditForm,
+    cancelEditForm,
+    setInsight,
+  ]);
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const res = await apiClient.get("/users");
+      setUsers(res.data);
+    } catch (err) {
+      console.error(err);
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
 
   const fetchForms = async () => {
     try {
-      const res = await axios.get(
-        "http://127.0.0.1:8000/api/forms/"
-      );
-
+      const res = await apiClient.get("/forms/");
       setFormsOpen(res.data);
-
     } catch (err) {
       console.error(err);
     }
   };
 
-  const fieldPalette = [
-      {
-        id: "text",
-        label: "Text Input",
-        type: "text",
-        defaultValue: "",
-        required: false,
-      },
-      {
-        id: "textarea",
-        label: "Textarea",
-        type: "textarea",
-        defaultValue: "",
-        required: false,
-      },
-      {
-        id: "number",
-        label: "Number",
-        type: "number",
-        defaultValue: 0,
-        required: false,
-      },
-      {
-        id: "dropdown",
-        label: "Dropdown",
-        type: "dropdown",
-        options: ["Option 1", "Option 2"],
-      },
-      { id: "date", label: "Date", type: "date" },
-  
-      // enterprise additions
-      { id: "email", label: "Email", type: "email" },
-      { id: "checkbox", label: "Checkbox", type: "checkbox" },
-      { id: "radio", label: "Radio Group", type: "radio" },
-      { id: "file", label: "File Upload", type: "file" },
-  ];
-  
-  const DraggableField = ({ field }) => {
-    const { attributes, listeners, setNodeRef, transform } = useDraggable({
-      id: field.id,
-      data: field,
-    });
-
-    const style = {
-      transform: transform
-        ? `translate(${transform.x}px, ${transform.y}px)`
-        : undefined,
-      padding: "8px",
-      marginBottom: "8px",
-      background: "#f4f4f4",
-      cursor: "grab",
-    };
-
-    return (
-      <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-        {field.label}
-      </div>
-    );
+  const fetchFormTypes = async () => {
+    setFormTypesLoading(true);
+    try {
+      const res = await apiClient.get("/form-types/");
+      setFormTypes(res.data);
+    } catch (err) {
+      console.error(err);
+      setFormTypes(DEFAULT_FORM_TYPES.map((name) => ({ name })));
+    } finally {
+      setFormTypesLoading(false);
+    }
   };
 
-  const CanvasDropZone = ({ children }) => {
-      const { setNodeRef, isOver } = useDroppable({
-        id: "canvas",
-      });
+  const handleDragStart = useCallback((event) => {
+    setActiveDragField(event.active.data.current || null);
+  }, []);
 
-      return (
-      <div
-        ref={setNodeRef}
-        className="fb-canvas"
-        style={{
-          minHeight: "300px",
-          background: isOver ? "#eef6ff" : "transparent",
-        }}
-      >
-        {children}
-      </div>
-    );
-  };
+  const handleDragEnd = useCallback((event) => {
+    setActiveDragField(null);
 
-  const handleDragEnd = (event) => {
     const { active, over } = event;
-
-    if (!over) return;
+    if (!over || over.id !== "canvas") return;
 
     const field = active.data.current;
+    if (!field) return;
 
-    if (over.id === "canvas") {
-      setFields((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          label: field.label,
-          type: field.type,
-        },
-      ]);
+    const newId = Date.now();
+    setFields((prev) => [...prev, createFieldFromPalette(field, newId)]);
+    setSelectedFieldId(newId);
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveDragField(null);
+  }, []);
+
+  const deleteField = useCallback((id) => {
+    setFields((prev) => prev.filter((f) => f.id !== id));
+    setSelectedFieldId((current) => (current === id ? null : current));
+  }, []);
+
+  const updateField = useCallback((id, updates) => {
+    setFields((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, ...updates } : f))
+    );
+  }, []);
+
+  const selectField = useCallback((id) => {
+    setSelectedFieldId(id);
+  }, []);
+
+  const openJsonDrawer = useCallback((form) => {
+    let payload;
+    try {
+      payload =
+        typeof form.fmjson === "string" ? JSON.parse(form.fmjson) : { ...form.fmjson };
+    } catch {
+      payload = { raw: form.fmjson };
+    }
+
+    if (form.ftype && !payload.ftype) {
+      payload = { ...payload, ftype: form.ftype };
+    }
+
+    const formatted = JSON.stringify(payload, null, 2);
+
+    setJsonDrawer({
+      open: true,
+      collapsed: false,
+      title: form.fmname,
+      content: formatted,
+    });
+  }, []);
+
+  const closeJsonDrawer = () => {
+    setJsonDrawer({ open: false, collapsed: false, title: "", content: "" });
+  };
+
+  const collapseJsonDrawer = () => {
+    setJsonDrawer((prev) => ({ ...prev, collapsed: true }));
+  };
+
+  const expandJsonDrawer = () => {
+    setJsonDrawer((prev) => ({ ...prev, collapsed: false }));
+  };
+
+  const loadFormForEdit = useCallback((form) => {
+    if (!canEdit(form.fmstatus)) {
+      feedback.workflowBlocked({
+        itemType: "form",
+        itemName: form.fmname,
+        status: form.fmstatus,
+      });
+      return;
+    }
+
+    const template = parseFormTemplate(form.fmjson);
+
+    setEditingFormId(form.id);
+    setFormName(form.fmname || template.name || "");
+    setFormType(form.ftype || template.ftype || "");
+    setFormRevision(form.fmrev && form.fmrev !== "1" ? form.fmrev : "");
+    setFields(
+      Array.isArray(template.fields)
+        ? template.fields.map((field) => normalizeFormField(field))
+        : []
+    );
+    setSelectedFieldId(null);
+    setPreviewMode(false);
+    setExpandedFormId(null);
+  }, [feedback]);
+
+  const saveForm = async () => {
+    if (!formName.trim()) {
+      feedback.error("Form name is required.");
+      return;
+    }
+
+    if (!formType.trim()) {
+      feedback.error("Form type is required.");
+      return;
+    }
+
+    try {
+      const wasEditing = Boolean(editingFormId);
+      const existing = editingFormId
+        ? formsOpen.find((form) => form.id === editingFormId)
+        : null;
+
+      const formData = {
+        fmname: formName.trim(),
+        ftype: formType.trim(),
+        fmrev: formRevision.trim() || "1",
+        fmstatus: existing?.fmstatus || INITIAL_WORKFLOW_STATUS,
+        fowner: existing?.fowner || formatKeycloakOwner(keycloak.tokenParsed),
+        fmlink: existing?.fmlink || null,
+        fmapprover: existing?.fmapprover || null,
+        fmeffective: existing?.fmeffective || null,
+        fmjson: JSON.stringify({
+          name: formName.trim(),
+          ftype: formType,
+          fields,
+        }),
+      };
+
+      if (editingFormId) {
+        await apiClient.put(`/forms/${editingFormId}`, formData);
+      } else {
+        await apiClient.post("/forms/", formData);
+      }
+
+      await fetchForms();
+      await fetchFormTypes();
+
+      cancelEditForm();
+
+      feedback.success(wasEditing ? "Form updated successfully." : "Form saved successfully.");
+    } catch (err) {
+      console.error(err);
+      feedback.error(err.response?.data?.detail || "Failed to save form");
     }
   };
 
-  const deleteField = (id) => {
-    setFields((prev) => prev.filter((f) => f.id !== id));
+  const openDeleteDialog = (target) => {
+    setDeleteDialog(target);
   };
 
-  const updateFieldLabel = (id, value) => {
-    setFields((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, label: value } : f)),
-    );
+  const closeDeleteDialog = () => {
+    if (deleting) return;
+    setDeleteDialog(null);
   };
 
-  <div className="fb-property-panel">
-    <h3>Field Properties</h3>
+  const deleteForm = useCallback((form) => {
+    if (!canDelete(form.fmstatus)) {
+      feedback.workflowBlocked({
+        itemType: "form",
+        itemName: form.fmname,
+        status: form.fmstatus,
+      });
+      return;
+    }
+    openDeleteDialog({ type: "single", form });
+  }, [feedback]);
 
-    {!selectedField ? (
-      <p>Select a field</p>
-    ) : (
-      <>
-        <input
-          value={selectedField.label}
-          onChange={(e) =>
-            setFields((prev) =>
-              prev.map((f) =>
-                f.id === selectedField.id ? { ...f, label: e.target.value } : f,
-              ),
-            )
-          }
-          placeholder="Label"
-        />
+  const openReviseDialog = useCallback((form) => {
+    if (!canRevise(form.fmstatus)) {
+      feedback.workflowBlocked({
+        itemType: "form",
+        itemName: form.fmname,
+        status: form.fmstatus,
+      });
+      return;
+    }
+    setReviseDialog(form);
+  }, [feedback]);
 
-        <input
-          value={selectedField.placeholder || ""}
-          onChange={(e) =>
-            setFields((prev) =>
-              prev.map((f) =>
-                f.id === selectedField.id
-                  ? { ...f, placeholder: e.target.value }
-                  : f,
-              ),
-            )
-          }
-          placeholder="Placeholder"
-        />
+  const closeReviseDialog = () => {
+    if (revising) return;
+    setReviseDialog(null);
+  };
 
-        <label>
-          <input
-            type="checkbox"
-            checked={selectedField.required || false}
-            onChange={(e) =>
-              setFields((prev) =>
-                prev.map((f) =>
-                  f.id === selectedField.id
-                    ? { ...f, required: e.target.checked }
-                    : f,
-                ),
-              )
-            }
-          />
-          Required
-        </label>
-      </>
-    )}
-  </div>;
+  const confirmReviseForm = async () => {
+    if (!reviseDialog) return;
 
-  const saveForm = async () => {
+    setRevising(true);
     try {
-
-      const formData = {
-        fmname: formName,
-        dtype: formType,
-        fmjson: JSON.stringify({
-          name: formName,
-          fields: fields,
-        })
-      };
-
-      await axios.post(
-        "http://127.0.0.1:8000/api/forms/",
-        formData
+      const res = await apiClient.post(`/forms/${reviseDialog.id}/revise`);
+      await fetchForms();
+      setReviseDialog(null);
+      feedback.success(
+        `Revision created. ${reviseDialog.fmname} is now Rev ${res.data.fmrev} in Draft.`
       );
-
-      fetchForms();
-
-      setFormName("");
-      setFormType("");
-      setFields([]);
-
-      alert("Form saved successfully");
-
     } catch (err) {
       console.error(err);
-      alert("Failed to save form");
+      feedback.error(err.response?.data?.detail || "Failed to create revision.");
+    } finally {
+      setRevising(false);
+    }
+  };
+
+  const deleteSelectedForms = () => {
+    if (selectedFormIds.length === 0) {
+      feedback.error("Select at least one form to delete.");
+      return;
+    }
+
+    const selected = formsOpen.filter((form) => selectedFormIds.includes(form.id));
+    const nonDraft = selected.filter((form) => !canDelete(form.fmstatus));
+    if (nonDraft.length > 0) {
+      feedback.workflowBlocked({
+        itemType: "form",
+        itemName: nonDraft[0].fmname,
+        status: nonDraft[0].fmstatus,
+      });
+      return;
+    }
+
+    openDeleteDialog({ type: "bulk", ids: [...selectedFormIds] });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteDialog) return;
+
+    setDeleting(true);
+    try {
+      if (deleteDialog.type === "single") {
+        const { form } = deleteDialog;
+        await apiClient.delete(`/forms/${form.id}`);
+        if (editingFormId === form.id) {
+          cancelEditForm();
+        }
+        if (expandedFormId === form.id) {
+          setExpandedFormId(null);
+        }
+        setSelectedFormIds((current) => current.filter((id) => id !== form.id));
+      } else {
+        const ids = deleteDialog.ids;
+        await Promise.all(ids.map((id) => apiClient.delete(`/forms/${id}`)));
+        if (editingFormId && ids.includes(editingFormId)) {
+          cancelEditForm();
+        }
+        if (expandedFormId && ids.includes(expandedFormId)) {
+          setExpandedFormId(null);
+        }
+        setSelectedFormIds([]);
+        gridApiRef.current?.deselectAll?.();
+      }
+
+      await fetchForms();
+      setDeleteDialog(null);
+    } catch (err) {
+      console.error(err);
+      feedback.error(err.response?.data?.detail || "Failed to delete form(s).");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleFormExpand = useCallback((formId) => {
+    setExpandedFormId((current) => (current === formId ? null : formId));
+  }, []);
+
+  const rowSelection = useMemo(() => multiRowSelection, []);
+
+  const savedFormGridRows = useMemo(() => {
+    const rows = [];
+    filteredSavedForms.forEach((form) => {
+      rows.push(form);
+      if (expandedFormId === form.id) {
+        rows.push({
+          id: `detail-${form.id}`,
+          detailRow: true,
+          form,
+        });
+      }
+    });
+    return rows;
+  }, [filteredSavedForms, expandedFormId]);
+
+  const handleSavedFormSelectionChanged = useCallback((event) => {
+    gridApiRef.current = event.api;
+    const ids = event.api
+      .getSelectedRows()
+      .filter((row) => !row.detailRow)
+      .map((row) => row.id);
+    setSelectedFormIds(ids);
+  }, []);
+
+  const handleSavedFormGridReady = useCallback((event) => {
+    gridApiRef.current = event.api;
+  }, []);
+
+  const getSavedFormRowId = useCallback((params) => {
+    const row = params.data;
+    return row.detailRow ? `detail-${row.form.id}` : String(row.id);
+  }, []);
+
+  const isSavedFormFullWidthRow = useCallback(
+    (params) => Boolean(params.rowNode?.data?.detailRow),
+    []
+  );
+
+  const getSavedFormRowHeight = useCallback((params) => {
+    const row = params.node?.data ?? params.data;
+    if (row?.detailRow) {
+      const template = parseFormTemplate(row.form.fmjson);
+      const fieldCount = template.fields?.length || 0;
+      return Math.min(480, 120 + fieldCount * 36);
+    }
+    return 52;
+  }, []);
+
+  const isSavedFormRowSelectable = useCallback(
+    (params) => !params.rowNode?.data?.detailRow,
+    []
+  );
+
+  const getSavedFormRowClass = useCallback(
+    (params) => {
+      if (params.data?.detailRow) return "forms-saved-detail-wrapper";
+      if (params.data?.id === editingFormId) return "forms-saved-row-active";
+      return params.data?.id === expandedFormId ? "forms-saved-row-active" : "";
+    },
+    [expandedFormId, editingFormId]
+  );
+
+  const savedFormGridContext = useMemo(
+    () => ({
+      expandedFormId,
+      onToggleExpand: toggleFormExpand,
+      onEditForm: loadFormForEdit,
+      onReviseForm: openReviseDialog,
+      onDeleteForm: deleteForm,
+      onOpenJson: openJsonDrawer,
+      deleting,
+      canEditForm: permission.canEditForm,
+      canDeleteForm: permission.canDeleteForm,
+    }),
+    [
+      expandedFormId,
+      toggleFormExpand,
+      deleting,
+      loadFormForEdit,
+      openReviseDialog,
+      deleteForm,
+      openJsonDrawer,
+      permission.canEditForm,
+      permission.canDeleteForm,
+    ]
+  );
+
+  const savedFormColumnDefs = useMemo(
+    () => {
+      const cols = [
+      {
+        field: "fmname",
+        headerName: "Name",
+        minWidth: 180,
+        flex: 1,
+        cellRenderer: FormNameCellRenderer,
+      },
+      {
+        field: "ftype",
+        headerName: "Form type",
+        flex: 0,
+        minWidth: 120,
+        width: 130,
+        valueGetter: (params) => (params.data?.detailRow ? "" : params.data.ftype || "—"),
+      },
+      {
+        field: "fmrev",
+        headerName: "Revision",
+        flex: 0,
+        width: 90,
+        maxWidth: 100,
+        valueGetter: (params) => (params.data?.detailRow ? "" : params.data.fmrev || "1"),
+      },
+      {
+        field: "fmstatus",
+        headerName: "Status",
+        flex: 0,
+        minWidth: 110,
+        width: 120,
+        cellRenderer: (params) => {
+          if (params.data?.detailRow) return null;
+          return <WorkflowStatusBadge status={params.data.fmstatus} />;
+        },
+      },
+      {
+        field: "fowner",
+        headerName: "Owner",
+        flex: 0,
+        minWidth: 110,
+        width: 120,
+        valueGetter: (params) =>
+          params.data?.detailRow ? "" : formatStoredOwner(params.data.fowner),
+        tooltipValueGetter: (params) => params.data?.fowner || "",
+      },
+      {
+        headerName: "JSON",
+        flex: 0,
+        width: 100,
+        maxWidth: 110,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params) => {
+          if (params.data?.detailRow) return null;
+          return (
+            <button
+              type="button"
+              className="forms-link-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                params.context?.onOpenJson?.(params.data);
+              }}
+            >
+              View JSON
+            </button>
+          );
+        },
+      },
+      {
+        field: "updated",
+        headerName: "Updated",
+        flex: 0,
+        minWidth: 112,
+        width: 118,
+        valueGetter: (params) => (params.data?.detailRow ? "" : params.data.updated || ""),
+        valueFormatter: (params) => formatWorkflowDate(params.value),
+        tooltipValueGetter: (params) => {
+          if (params.data?.detailRow || !params.value) return "";
+          const date = new Date(params.value);
+          return Number.isNaN(date.getTime()) ? String(params.value) : date.toLocaleString();
+        },
+        cellClass: "forms-muted forms-updated-col",
+      },
+      ];
+      if (permission.canEditForm || permission.canDeleteForm) {
+        cols.push({
+        headerName: "Actions",
+        flex: 0,
+        minWidth: 112,
+        maxWidth: 120,
+        width: 116,
+        sortable: false,
+        filter: false,
+        cellRenderer: FormSavedActionsCellRenderer,
+        cellClass: "forms-saved-actions-col",
+        });
+      }
+      return cols;
+    },
+    [permission.canEditForm, permission.canDeleteForm]
+  );
+
+  const draftFormsForReview = useMemo(
+    () =>
+      formsOpen.filter(
+        (form) => selectedFormIds.includes(form.id) && canSendToReview(form.fmstatus)
+      ),
+    [formsOpen, selectedFormIds]
+  );
+
+  const openReviewDrawer = () => {
+    if (selectedFormIds.length === 0) {
+      feedback.error("Select at least one form to send for review.");
+      return;
+    }
+
+    if (draftFormsForReview.length === 0) {
+      feedback.error("Only draft forms can be sent for review.");
+      return;
+    }
+
+    setReviewApprover("");
+    setReviewEffectiveDate("");
+    setReviewDrawerOpen(true);
+    if (users.length === 0) {
+      fetchUsers();
+    }
+  };
+
+  const closeReviewDrawer = () => {
+    if (reviewSubmitting) return;
+    setReviewDrawerOpen(false);
+    setReviewApprover("");
+    setReviewEffectiveDate("");
+  };
+
+  const confirmSendReview = async () => {
+    if (!reviewApprover.trim()) {
+      feedback.error("Select an approver before sending.");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      const payload = {
+        fmapprover: reviewApprover.trim(),
+        fmeffective: reviewEffectiveDate || null,
+      };
+      const results = await Promise.allSettled(
+        draftFormsForReview.map((form) =>
+          apiClient.post(`/forms/${form.id}/submit-review`, payload)
+        )
+      );
+      const failed = results.filter((result) => result.status === "rejected");
+      if (failed.length > 0) {
+        feedback.error(`${failed.length} form(s) could not be sent for review.`);
+      } else {
+        feedback.success("Form(s) submitted for approval.");
+      }
+      await fetchForms();
+      setSelectedFormIds([]);
+      setReviewDrawerOpen(false);
+      setReviewApprover("");
+      setReviewEffectiveDate("");
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
   return (
-    <div>
+    <div
+      className={
+        showBuilderPanel
+          ? `forms-page${
+              view === "builder" ? " forms-page--builder" : " forms-page--editing"
+            }`
+          : "grid-page"
+      }
+    >
+      {showBuilderPanel && (
       <DndContext
         collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
-        <div className="fb-layout">
-          {/* LEFT - FIELD PALETTE */}
-          <div className="fb-left">
-            <h3>Field Library</h3>
+        <section className="forms-builder-shell" ref={builderRef}>
+          <FormBuilderDesigner
+            formName={formName}
+            formType={formType}
+            formRevision={formRevision}
+            formTypes={formTypes}
+            formTypesLoading={formTypesLoading}
+            fields={fields}
+            selectedFieldId={selectedFieldId}
+            selectedField={selectedField}
+            previewMode={previewMode}
+            editingFormId={editingFormId}
+            onFormNameChange={setFormName}
+            onFormTypeChange={setFormType}
+            onFormRevisionChange={setFormRevision}
+            onTogglePreview={() => setPreviewMode((prev) => !prev)}
+            onSave={saveForm}
+            onCancelEdit={cancelEditForm}
+            onSelectField={selectField}
+            onDeleteField={deleteField}
+            onUpdateField={updateField}
+          />
+        </section>
 
-            {fieldPalette.map((f) => (
-              <DraggableField key={f.id} field={f} />
-            ))}
-          </div>
+        <DragOverlay dropAnimation={null}>
+          {activeDragField ? (
+            <div className="forms-library-item forms-library-item-overlay">
+              <span className="forms-library-item-label">{activeDragField.label}</span>
+              <span className="forms-library-item-grip" aria-hidden="true">
+                ⋮
+              </span>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+      )}
 
-          {/* CENTER - BUILDER */}
-          <div className="fb-center">
-            <h2>Form Builder</h2>
+      {showSavedTable && (
+        <>
+          <p className="forms-muted forms-revision-hint docs-revision-hint">{revisionHelpText()}</p>
+          <AppDataGrid
+            rowData={savedFormGridRows}
+            columnDefs={savedFormColumnDefs}
+            context={savedFormGridContext}
+            rowSelection={rowSelection}
+            onSelectionChanged={handleSavedFormSelectionChanged}
+            onGridReady={handleSavedFormGridReady}
+            getRowClass={getSavedFormRowClass}
+            getRowId={getSavedFormRowId}
+            isFullWidthRow={isSavedFormFullWidthRow}
+            fullWidthCellRenderer={FormDetailRowRenderer}
+            getRowHeight={getSavedFormRowHeight}
+            isRowSelectable={isSavedFormRowSelectable}
+            overlayNoRowsTemplate="<span>No saved forms yet.</span>"
+            searchPlaceholder="Search saved forms..."
+            toolbarActions={
+              <>
+                {permission.canDeleteForm && (
+                <button
+                  type="button"
+                  className="parts-btn danger"
+                  onClick={deleteSelectedForms}
+                  disabled={selectedFormIds.length === 0 || deleting}
+                >
+                  Delete
+                </button>
+                )}
+                {permission.canEditForm && (
+                <button
+                  type="button"
+                  className="parts-btn"
+                  onClick={openReviewDrawer}
+                  disabled={selectedFormIds.length === 0}
+                >
+                  Send to review
+                </button>
+                )}
+                {selectedFormIds.length > 0 && (
+                  <span className="parts-selection-count">
+                    {selectedFormIds.length} selected
+                  </span>
+                )}
+              </>
+            }
+          />
+        </>
+      )}
 
-            <input
-              placeholder="Form Name"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
+      {showSaved && (
+      <JsonViewerDrawer
+        drawer={jsonDrawer}
+        onClose={closeJsonDrawer}
+        onCollapse={collapseJsonDrawer}
+        onExpand={expandJsonDrawer}
+      />
+      )}
 
-            <select
-              value={formType}
-              onChange={(e) => setFormType(e.target.value)}
-            >
-              <option value="">Select Document Type</option>
-              <option value="SOP">SOP</option>
-              <option value="Work Instruction">Work Instruction</option>
-              <option value="Form">Form</option>
-              <option value="Training">Training</option>
-              <option value="Policy">Policy</option>
-            </select>
+      <SubmitReviewDrawer
+        open={reviewDrawerOpen}
+        title="Send forms for review"
+        subtitle="Choose an approver and effective date for the selected forms."
+        itemCount={draftFormsForReview.length}
+        approver={reviewApprover}
+        effectiveDate={reviewEffectiveDate}
+        onApproverChange={setReviewApprover}
+        onEffectiveDateChange={setReviewEffectiveDate}
+        users={users}
+        usersLoading={usersLoading}
+        submitting={reviewSubmitting}
+        onSubmit={confirmSendReview}
+        onClose={closeReviewDrawer}
+      />
 
-            {/* ACTIONS (FIXED LOCATION) */}
-            <div style={{ margin: "10px 0", display: "flex", gap: 10 }}>
-              <button onClick={saveForm}>💾 Save Form</button>
-
-              <button onClick={() => setPreviewMode((p) => !p)}>
-                👁 {previewMode ? "Edit Mode" : "Preview Mode"}
+      {reviseDialog && (
+        <div className="modal-overlay" onClick={closeReviseDialog}>
+          <div
+            className="modal modal-compact forms-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3>Create revision</h3>
+            <p className="forms-delete-message">
+              Archive <strong>{reviseDialog.fmname}</strong> at Rev{" "}
+              <strong>{reviseDialog.fmrev || "1"}</strong> (Released) and start Rev{" "}
+              <strong>{nextRevision(reviseDialog.fmrev || "1")}</strong> in Draft.
+            </p>
+            <div className="forms-delete-actions">
+              <button
+                type="button"
+                className="parts-btn primary"
+                onClick={confirmReviseForm}
+                disabled={revising}
+              >
+                {revising ? "Creating..." : "Create revision"}
+              </button>
+              <button
+                type="button"
+                className="parts-btn"
+                onClick={closeReviseDialog}
+                disabled={revising}
+              >
+                Cancel
               </button>
             </div>
-
-            {/* CANVAS */}
-            <CanvasDropZone>
-              {fields.length === 0 && <p>Drag fields here...</p>}
-
-              {fields.map((field) => (
-                <div
-                  key={field.id}
-                  className={`fb-field ${
-                    selectedFieldId === field.id ? "selected-field" : ""
-                  }`}
-                  onClick={() =>
-                    !previewMode && setSelectedFieldId(field.id)
-                  }
-                  style={{
-                    padding: 10,
-                    border:
-                      selectedFieldId === field.id
-                        ? "2px solid #4f46e5"
-                        : "1px solid #ddd",
-                    marginBottom: 10,
-                    borderRadius: 6,
-                    background:
-                      selectedFieldId === field.id
-                        ? "#f5f7ff"
-                        : "white",
-                    cursor: previewMode ? "default" : "pointer",
-                  }}
-                >
-                  {/* HEADER */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      alignItems: "center",
-                    }}
-                  >
-                    {previewMode ? (
-                      <label style={{ fontWeight: "bold" }}>
-                        {field.label}
-                      </label>
-                    ) : (
-                      <input
-                        value={field.label}
-                        onChange={(e) =>
-                          updateFieldLabel(field.id, e.target.value)
-                        }
-                        style={{ flex: 1 }}
-                      />
-                    )}
-
-                    {!previewMode && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteField(field.id);
-                        }}
-                        style={{
-                          color: "red",
-                          border: "none",
-                          background: "transparent",
-                          cursor: "pointer",
-                          fontSize: 16,
-                        }}
-                      >
-                        ❌
-                      </button>
-                    )}
-                  </div>
-
-                  {/* FIELD BODY */}
-                  <div style={{ marginTop: 10 }}>
-                    {previewMode ? (
-                      <>
-                        {field.type === "text" && <input />}
-                        {field.type === "textarea" && <textarea />}
-                        {field.type === "number" && (
-                          <input type="number" />
-                        )}
-                        {field.type === "date" && <input type="date" />}
-                        {field.type === "dropdown" && (
-                          <select>
-                            <option>Option 1</option>
-                          </select>
-                        )}
-                      </>
-                    ) : (
-                      <small style={{ color: "#666" }}>
-                        type: {field.type}
-                      </small>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </CanvasDropZone>
-          </div>
-
-          {/* RIGHT - SAVED FORMS */}
-          <div className="fb-right">
-            <h3>Saved Forms</h3>
-
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th>Form Name</th>
-                  <th>Doc Type</th>
-                  <th>JSON Form</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {formsOpen.map((form) => (
-                  <tr key={form.id}>
-                    <td>{form.fmname}</td>
-                    <td>{form.dtype}</td>
-                    <td>
-                      <button
-                        onClick={() =>
-                          alert(
-                            JSON.stringify(
-                              JSON.parse(form.fmjson),
-                              null,
-                              2
-                            )
-                          )
-                        }
-                      >
-                        View JSON
-                      </button>
-                    </td>
-                    <td>{form.updated}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
-      </DndContext>
+      )}
+
+      {deleteDialog && (
+        <div className="modal-overlay" onClick={closeDeleteDialog}>
+          <div
+            className="modal modal-compact forms-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3>
+              Delete form
+              {deleteDialog.type === "bulk" && deleteDialog.ids.length > 1 ? "s" : ""}
+            </h3>
+            <p className="forms-delete-message">
+              {deleteDialog.type === "single" ? (
+                <>
+                  Are you sure you want to delete{" "}
+                  <strong>{deleteDialog.form.fmname}</strong>? This cannot be undone.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete{" "}
+                  <strong>{deleteDialog.ids.length}</strong> selected form
+                  {deleteDialog.ids.length === 1 ? "" : "s"}? This cannot be undone.
+                </>
+              )}
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="parts-btn danger"
+                onClick={confirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+              <button
+                type="button"
+                className="parts-btn"
+                onClick={closeDeleteDialog}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

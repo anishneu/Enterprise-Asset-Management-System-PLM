@@ -1,0 +1,83 @@
+.settings-page .settings-profile-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.settings-avatar-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--tv-border);
+  border-radius: var(--tv-radius-md);
+  background: var(--tv-surface-muted);
+}
+
+.settings-avatar-preview.profile-avatar-lg {
+  width: 96px;
+  height: 96px;
+  font-size: 2rem;
+}
+
+.settings-avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.settings-file-input {
+  display: none;
+}
+
+.settings-avatar-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--tv-text-muted);
+  text-align: center;
+  line-height: 1.45;
+}
+
+.settings-details {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-details--compact {
+  max-width: 520px;
+}
+
+.settings-details div {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--tv-border);
+}
+
+.settings-details div:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.settings-details dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tv-text-muted);
+  margin-bottom: 4px;
+}
+
+.settings-details dd {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--tv-text);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .settings-page .settings-profile-layout {
+    grid-template-columns: 1fr;
+  }
+}

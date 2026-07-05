@@ -1,0 +1,141 @@
+.user-actions-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.user-actions-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--tv-radius-sm);
+  background: transparent;
+  color: var(--tv-text-muted);
+  cursor: pointer;
+}
+
+.user-actions-trigger:hover,
+.user-actions-trigger.is-open {
+  background: var(--tv-surface-muted);
+  color: var(--tv-text);
+}
+
+.user-actions-menu {
+  min-width: 180px;
+  padding: 6px;
+  background: var(--tv-surface);
+  border: 1px solid var(--tv-border);
+  border-radius: var(--tv-radius-sm);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.user-actions-menu--portal {
+  position: fixed;
+}
+
+.user-actions-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--tv-radius-sm);
+  background: transparent;
+  color: var(--tv-text);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-actions-menu button:hover {
+  background: var(--tv-surface-muted);
+}
+
+.group-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--tv-radius-sm);
+  background: transparent;
+  color: var(--tv-text-muted);
+  cursor: pointer;
+}
+
+.group-edit-btn:hover {
+  background: var(--tv-surface-muted);
+  color: var(--tv-text);
+}
+
+.modal-user {
+  max-width: 460px;
+}
+
+.modal-user h3 {
+  margin: 0 0 8px;
+}
+
+.modal-user .user-modal-intro,
+.modal-user .forms-muted {
+  margin: 0 0 18px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--tv-text-muted);
+}
+
+.user-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.user-modal-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.user-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.user-modal-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--tv-text-muted);
+}
+
+.modal-user .user-modal-field input,
+.modal-user .user-modal-field select {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--tv-border);
+  border-radius: var(--tv-radius-sm);
+  background: var(--tv-surface);
+  color: var(--tv-text);
+  box-sizing: border-box;
+}
+
+.modal-user .modal-actions {
+  margin-top: 20px;
+}
+
+.user-modal-readonly {
+  padding: 8px 10px;
+  border-radius: var(--tv-radius-sm);
+  background: var(--tv-surface-muted);
+  color: var(--tv-text-muted);
+  font-size: 0.9rem;
+}
