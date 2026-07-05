@@ -1,5 +1,5 @@
 function GroupEditCellRenderer({ data, context }) {
-  if (!data?.id) return null;
+  if (!data?.id || !context?.canEditGroup) return null;
 
   return (
     <button

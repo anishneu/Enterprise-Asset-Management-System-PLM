@@ -6,6 +6,7 @@ import { createEditColumn, multiRowSelection } from "./common/gridHelpers";
 import { usePageInsight } from "./dashboard/PageInsightContext";
 import { filterBySearch } from "../utils/filterBySearch";
 import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
 
 import jsPDF from "jspdf";
 
@@ -28,6 +29,7 @@ function Parts({ searchText = "" }) {
   const gridApiRef = useRef(null);
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
+  const permission = usePermission();
 
   const clearSelection = useCallback(() => {
     gridApiRef.current?.deselectAll();
@@ -175,19 +177,20 @@ function Parts({ searchText = "" }) {
   const gridContext = useMemo(
     () => ({
       onEdit: openEditModal,
+      canEdit: permission.canEditPart,
     }),
-    [openEditModal]
+    [openEditModal, permission.canEditPart]
   );
 
   const columnDefs = useMemo(
     () => [
-      createEditColumn(),
+      ...(permission.canEditPart ? [createEditColumn()] : []),
       { field: "partno", headerName: "Part Number" },
       { field: "pdesc", headerName: "Description" },
       { field: "prev", headerName: "Revision", maxWidth: 120 },
       { field: "updated", headerName: "Updated Date", minWidth: 170 },
     ],
-    []
+    [permission.canEditPart]
   );
 
   const exportCSV = () => {
@@ -274,9 +277,12 @@ function Parts({ searchText = "" }) {
           overlayNoRowsTemplate="<span>No parts found.</span>"
           toolbarActions={
             <>
+              {permission.canCreatePart && (
               <button type="button" className="parts-btn primary" onClick={openAddModal}>
                 Add
               </button>
+              )}
+              {permission.canDeletePart && (
               <button
                 type="button"
                 className="parts-btn danger"
@@ -285,6 +291,7 @@ function Parts({ searchText = "" }) {
               >
                 Delete
               </button>
+              )}
               {selectedIds.length > 0 && (
                 <span className="parts-selection-count">
                   {selectedIds.length} selected

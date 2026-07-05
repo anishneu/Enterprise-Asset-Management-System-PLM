@@ -7,6 +7,7 @@ import apiClient from "../api/client";
 import { usePageInsight } from "./dashboard/PageInsightContext";
 import { filterBySearch } from "../utils/filterBySearch";
 import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
 import {
   ASSIGNABLE_ROLES,
   groupPermissionsByArea,
@@ -31,6 +32,7 @@ function Groups({ searchText = "" }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
+  const { canEditGroup } = usePermission();
 
   const filteredGroups = useMemo(
     () =>
@@ -162,17 +164,21 @@ function Groups({ searchText = "" }) {
   const gridContext = useMemo(
     () => ({
       onEditGroup: handleEditGroup,
+      canEditGroup,
     }),
-    [handleEditGroup]
+    [handleEditGroup, canEditGroup]
   );
 
   const columnDefs = useMemo(
-    () => [
+    () => {
+      const cols = [
       { field: "name", headerName: "Group Name", minWidth: 180, flex: 1 },
       { field: "members", headerName: "Members", minWidth: 220, flex: 1.2 },
       { field: "roles", headerName: "Roles", minWidth: 160 },
       { field: "permissions", headerName: "Permissions", minWidth: 280, flex: 1.6 },
-      {
+      ];
+      if (canEditGroup) {
+        cols.push({
         headerName: "",
         colId: "edit",
         maxWidth: 72,
@@ -180,9 +186,11 @@ function Groups({ searchText = "" }) {
         filter: false,
         cellClass: "group-actions-column",
         cellRenderer: GroupEditCellRenderer,
-      },
-    ],
-    []
+        });
+      }
+      return cols;
+    },
+    [canEditGroup]
   );
 
   const getGroupRowId = useCallback((params) => String(params.data.id), []);

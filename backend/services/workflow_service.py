@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 
 from constants.workflow import (
+    ENTITY_CURRICULUM,
     ENTITY_DOC,
     ENTITY_FORM,
     REQUEST_APPROVED,
@@ -99,30 +100,49 @@ class WorkflowService:
         return cursor.fetchone()
 
     @staticmethod
+    def _get_curriculum(cursor, curriculum_id: int):
+        cursor.execute("SELECT * FROM training_curriculum WHERE id=%s;", (curriculum_id,))
+        return cursor.fetchone()
+
+    @staticmethod
     def _entity_row(cursor, entity_type: str, entity_id: int):
         if entity_type == ENTITY_FORM:
             return WorkflowService._get_form(cursor, entity_id)
         if entity_type == ENTITY_DOC:
             return WorkflowService._get_doc(cursor, entity_id)
+        if entity_type == ENTITY_CURRICULUM:
+            return WorkflowService._get_curriculum(cursor, entity_id)
         return None
 
     @staticmethod
     def _entity_status(entity_type: str, row: dict) -> str:
         if entity_type == ENTITY_FORM:
             return normalize_status(row.get("fmstatus"))
+        if entity_type == ENTITY_CURRICULUM:
+            return normalize_status(row.get("status"))
         return normalize_status(row.get("dstatus"))
 
     @staticmethod
     def _entity_revision(entity_type: str, row: dict) -> str:
         if entity_type == ENTITY_FORM:
             return (row.get("fmrev") or "1").strip() or "1"
+        if entity_type == ENTITY_CURRICULUM:
+            return (row.get("revision") or "A").strip() or "A"
         return (row.get("drev") or "1").strip() or "1"
 
     @staticmethod
     def _entity_title(entity_type: str, row: dict) -> str:
         if entity_type == ENTITY_FORM:
             return (row.get("fmname") or "").strip()
+        if entity_type == ENTITY_CURRICULUM:
+            return (row.get("curriculum_name") or "").strip()
         return (row.get("dname") or "").strip()
+
+    @staticmethod
+    def _release_curriculum_course(cursor, curriculum_id: int) -> None:
+        from services.training_plm_service import TrainingPlmService
+
+        TrainingPlmService.finalize_curriculum_release(cursor, curriculum_id)
 
     @staticmethod
     def _set_entity_status(
@@ -132,6 +152,7 @@ class WorkflowService:
         status: str,
         *,
         approver_display: str | None = None,
+        approver_user_id: str | None = None,
         effective_date=None,
     ) -> None:
         if entity_type == ENTITY_FORM:
@@ -143,6 +164,28 @@ class WorkflowService:
                 """,
                 (status, approver_display, effective_date, entity_id),
             )
+            return
+
+        if entity_type == ENTITY_CURRICULUM:
+            cursor.execute(
+                """
+                UPDATE training_curriculum
+                SET status=%s,
+                    approver_display=%s,
+                    approver_user_id=%s,
+                    effective_date=%s
+                WHERE id=%s
+                """,
+                (
+                    status,
+                    approver_display,
+                    approver_user_id,
+                    effective_date,
+                    entity_id,
+                ),
+            )
+            if status == STATUS_RELEASED:
+                WorkflowService._release_curriculum_course(cursor, entity_id)
             return
 
         cursor.execute(
@@ -194,6 +237,22 @@ class WorkflowService:
         return WorkflowService._submit_for_review(
             ENTITY_DOC,
             doc_id,
+            approver_username=approver_username,
+            effective_date=effective_date,
+            requester=requester,
+        )
+
+    @staticmethod
+    def submit_curriculum_for_review(
+        curriculum_id: int,
+        *,
+        approver_username: str,
+        effective_date=None,
+        requester: dict,
+    ):
+        return WorkflowService._submit_for_review(
+            ENTITY_CURRICULUM,
+            curriculum_id,
             approver_username=approver_username,
             effective_date=effective_date,
             requester=requester,
@@ -261,6 +320,7 @@ class WorkflowService:
                 entity_id,
                 STATUS_PENDING,
                 approver_display=approver_display,
+                approver_user_id=approver_user["id"],
                 effective_date=effective_date,
             )
 
@@ -288,6 +348,10 @@ class WorkflowService:
             from services.form_service import FormService
 
             return FormService.get_form(entity_id)
+        if entity_type == ENTITY_CURRICULUM:
+            from services.training_plm_service import TrainingPlmService
+
+            return TrainingPlmService.get_curriculum(entity_id)
         from services.doc_service import DocService
 
         return DocService.get_doc(entity_id)
@@ -371,6 +435,9 @@ class WorkflowService:
                 entity_id,
                 next_status,
                 approver_display=approver_display if next_status == STATUS_RELEASED else None,
+                approver_user_id=request.get("approver_sub")
+                if next_status == STATUS_RELEASED and entity_type == ENTITY_CURRICULUM
+                else None,
                 effective_date=effective_date if next_status == STATUS_RELEASED else None,
             )
 

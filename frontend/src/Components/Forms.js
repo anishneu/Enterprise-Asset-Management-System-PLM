@@ -19,6 +19,7 @@ import { formatKeycloakOwner, formatStoredOwner } from "../utils/ownerDisplay";
 import { DEFAULT_FORM_TYPES } from "../constants/documentCatalog";
 import { canSendToReview, canEdit, canDelete, canRevise, INITIAL_WORKFLOW_STATUS } from "../constants/workflowCatalog";
 import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
 import { nextRevision, revisionHelpText } from "../utils/revisionUtils";
 import { parseFormTemplate, formatWorkflowDate } from "./docs/docFormUtils";
 
@@ -142,6 +143,7 @@ function Forms({ searchText = "", view = "all" }) {
   const gridApiRef = useRef(null);
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
+  const permission = usePermission();
 
   const showBuilderPanel = showBuilder || editingFormId !== null;
   const showSavedTable = showSaved && editingFormId === null;
@@ -626,6 +628,8 @@ function Forms({ searchText = "", view = "all" }) {
       onDeleteForm: deleteForm,
       onOpenJson: openJsonDrawer,
       deleting,
+      canEditForm: permission.canEditForm,
+      canDeleteForm: permission.canDeleteForm,
     }),
     [
       expandedFormId,
@@ -635,11 +639,14 @@ function Forms({ searchText = "", view = "all" }) {
       openReviseDialog,
       deleteForm,
       openJsonDrawer,
+      permission.canEditForm,
+      permission.canDeleteForm,
     ]
   );
 
   const savedFormColumnDefs = useMemo(
-    () => [
+    () => {
+      const cols = [
       {
         field: "fmname",
         headerName: "Name",
@@ -722,7 +729,9 @@ function Forms({ searchText = "", view = "all" }) {
         },
         cellClass: "forms-muted forms-updated-col",
       },
-      {
+      ];
+      if (permission.canEditForm || permission.canDeleteForm) {
+        cols.push({
         headerName: "Actions",
         flex: 0,
         minWidth: 112,
@@ -732,9 +741,11 @@ function Forms({ searchText = "", view = "all" }) {
         filter: false,
         cellRenderer: FormSavedActionsCellRenderer,
         cellClass: "forms-saved-actions-col",
-      },
-    ],
-    []
+        });
+      }
+      return cols;
+    },
+    [permission.canEditForm, permission.canDeleteForm]
   );
 
   const draftFormsForReview = useMemo(
@@ -878,6 +889,7 @@ function Forms({ searchText = "", view = "all" }) {
             searchPlaceholder="Search saved forms..."
             toolbarActions={
               <>
+                {permission.canDeleteForm && (
                 <button
                   type="button"
                   className="parts-btn danger"
@@ -886,6 +898,8 @@ function Forms({ searchText = "", view = "all" }) {
                 >
                   Delete
                 </button>
+                )}
+                {permission.canEditForm && (
                 <button
                   type="button"
                   className="parts-btn"
@@ -894,6 +908,7 @@ function Forms({ searchText = "", view = "all" }) {
                 >
                   Send to review
                 </button>
+                )}
                 {selectedFormIds.length > 0 && (
                   <span className="parts-selection-count">
                     {selectedFormIds.length} selected

@@ -1,6 +1,7 @@
 import "./Dashboard.css";
 
 import keycloak from "../keycloak";
+import { logoutFromApp } from "../auth/initKeycloak";
 
 
 
@@ -21,10 +22,8 @@ import Groups from "./Groups";
 
 import Docs from "./Docs";
 
-import TrainingCourses from "./TrainingCourses";
 import TrainingCurriculum from "./TrainingCurriculum";
 import TrainingRecords from "./TrainingRecords";
-import QualificationMatrix from "./QualificationMatrix";
 
 import Approvals from "./Approvals";
 
@@ -49,6 +48,7 @@ import PageBreadcrumbs from "./common/PageBreadcrumbs";
 import { PageInsightContext } from "./dashboard/PageInsightContext";
 
 import { useProfile } from "../context/ProfileContext";
+import usePermission from "../hooks/usePermission";
 
 import {
 
@@ -80,13 +80,9 @@ const SECTION_LABELS = {
 
   "forms-saved": "Saved Forms",
 
-  "training-courses": "Courses",
-
   "training-records": "Records",
 
   "training-curriculum": "Curriculum",
-
-  "training-qualification": "Qualification Matrix",
 
   "approvals-pending": "Pending Requests",
 
@@ -120,13 +116,9 @@ const SECTION_DESCRIPTIONS = {
 
   "forms-saved": "Review saved form templates and JSON definitions.",
 
-  "training-courses": "Define master training courses linked to controlled documents and revisions.",
+  "training-records": "Per-trainee assignment history and outcomes.",
 
-  "training-records": "Track who completed each course, scores, trainers, and completion dates.",
-
-  "training-curriculum": "Group released courses into curricula and assign them to trainees.",
-
-  "training-qualification": "View trainee qualification status derived from training records.",
+  "training-curriculum": "Define training templates, release, then assign trainees.",
 
   "approvals-pending": "Review approval requests awaiting your action.",
 
@@ -154,8 +146,6 @@ const SCROLLABLE_MENUS = new Set([
 
   "docs",
 
-  "training-qualification",
-
   "settings",
 
   "help-support",
@@ -169,10 +159,8 @@ const ASSETS_MENUS = new Set(["parts", "docs"]);
 const FORMS_MENUS = new Set(["forms-builder", "forms-saved"]);
 
 const TRAINING_MENUS = new Set([
-  "training-courses",
   "training-records",
   "training-curriculum",
-  "training-qualification",
 ]);
 
 const APPROVALS_MENUS = new Set([
@@ -211,6 +199,7 @@ function Dashboard() {
   const [pageInsight, setPageInsight] = useState({});
 
   const { avatarUrl } = useProfile();
+  const permission = usePermission();
 
 
 
@@ -229,6 +218,48 @@ function Dashboard() {
     document.title = "TalonVault";
 
   }, []);
+
+
+
+  useEffect(() => {
+    if (activeMenu === "users" && !permission.canViewUsersAdmin) {
+      setActiveMenu("dashboard");
+    }
+    if (activeMenu === "groups" && !permission.canViewGroupsAdmin) {
+      setActiveMenu(permission.canViewUsersAdmin ? "users" : "dashboard");
+    }
+    if (activeMenu === "parts" && !permission.canViewParts) {
+      setActiveMenu(permission.canViewUsersAdmin ? "users" : "dashboard");
+    }
+    if (activeMenu === "docs" && !permission.canViewDocs) {
+      setActiveMenu(permission.canViewUsersAdmin ? "users" : "dashboard");
+    }
+    if (activeMenu === "forms-builder" && !permission.canCreateForm) {
+      setActiveMenu(permission.canViewForms ? "forms-saved" : permission.canViewUsersAdmin ? "users" : "dashboard");
+    }
+    if (activeMenu === "forms-saved" && !permission.canViewForms) {
+      setActiveMenu(permission.canViewUsersAdmin ? "users" : "dashboard");
+    }
+    if (activeMenu === "training-courses" || activeMenu === "training-qualification") {
+      setActiveMenu("training-curriculum");
+    }
+    if (TRAINING_MENUS.has(activeMenu) && !permission.canViewTraining) {
+      setActiveMenu(permission.canViewUsersAdmin ? "users" : "dashboard");
+    }
+    if (APPROVALS_MENUS.has(activeMenu) && !permission.canViewApprovals) {
+      setActiveMenu(permission.canViewUsersAdmin ? "users" : "dashboard");
+    }
+  }, [
+    activeMenu,
+    permission.canViewUsersAdmin,
+    permission.canViewGroupsAdmin,
+    permission.canViewParts,
+    permission.canViewDocs,
+    permission.canViewForms,
+    permission.canCreateForm,
+    permission.canViewTraining,
+    permission.canViewApprovals,
+  ]);
 
 
 
@@ -313,13 +344,7 @@ function Dashboard() {
 
 
   const handleLogout = () => {
-
-    keycloak.logout({
-
-      redirectUri: window.location.origin,
-
-    });
-
+    logoutFromApp();
   };
 
 
@@ -560,6 +585,7 @@ function Dashboard() {
 
 
 
+          {permission.canViewAssets && (
           <SidebarNavGroup
 
             label="Assets"
@@ -575,13 +601,15 @@ function Dashboard() {
             active={ASSETS_MENUS.has(activeMenu)}
 
           />
+          )}
 
 
 
-          {sidebarOpen && assetsOpen && (
+          {permission.canViewAssets && sidebarOpen && assetsOpen && (
 
             <ul className="submenu">
 
+              {permission.canViewParts && (
               <SidebarItem
 
                 label="Parts"
@@ -595,7 +623,9 @@ function Dashboard() {
                 onClick={() => handleMenuSelect("parts")}
 
               />
+              )}
 
+              {permission.canViewDocs && (
               <SidebarItem
 
                 label="Documents"
@@ -609,6 +639,7 @@ function Dashboard() {
                 onClick={() => handleMenuSelect("docs")}
 
               />
+              )}
 
             </ul>
 
@@ -616,6 +647,7 @@ function Dashboard() {
 
 
 
+          {permission.canViewForms && (
           <SidebarNavGroup
 
             label="Forms"
@@ -631,13 +663,15 @@ function Dashboard() {
             active={FORMS_MENUS.has(activeMenu)}
 
           />
+          )}
 
 
 
-          {sidebarOpen && formsOpen && (
+          {permission.canViewForms && sidebarOpen && formsOpen && (
 
             <ul className="submenu">
 
+              {permission.canCreateForm && (
               <SidebarItem
 
                 label="Formbuilder"
@@ -651,6 +685,7 @@ function Dashboard() {
                 onClick={() => handleMenuSelect("forms-builder")}
 
               />
+              )}
 
               <SidebarItem
 
@@ -672,6 +707,7 @@ function Dashboard() {
 
 
 
+          {permission.canViewTraining && (
           <SidebarNavGroup
 
             label="Training"
@@ -687,26 +723,13 @@ function Dashboard() {
             active={TRAINING_MENUS.has(activeMenu)}
 
           />
+          )}
 
 
 
-          {sidebarOpen && trainingOpen && (
+          {permission.canViewTraining && sidebarOpen && trainingOpen && (
 
             <ul className="submenu">
-
-              <SidebarItem
-
-                label="Courses"
-
-                showIcon={false}
-
-                active={activeMenu === "training-courses"}
-
-                collapsed={!sidebarOpen}
-
-                onClick={() => handleMenuSelect("training-courses")}
-
-              />
 
               <SidebarItem
 
@@ -736,26 +759,13 @@ function Dashboard() {
 
               />
 
-              <SidebarItem
-
-                label="Qualification Matrix"
-
-                showIcon={false}
-
-                active={activeMenu === "training-qualification"}
-
-                collapsed={!sidebarOpen}
-
-                onClick={() => handleMenuSelect("training-qualification")}
-
-              />
-
             </ul>
 
           )}
 
 
 
+          {permission.canViewApprovals && (
           <SidebarNavGroup
 
             label="Approvals"
@@ -771,10 +781,11 @@ function Dashboard() {
             active={APPROVALS_MENUS.has(activeMenu)}
 
           />
+          )}
 
 
 
-          {sidebarOpen && approvalsOpen && (
+          {permission.canViewApprovals && sidebarOpen && approvalsOpen && (
 
             <ul className="submenu">
 
@@ -840,6 +851,7 @@ function Dashboard() {
 
 
 
+          {permission.canViewAdminMenu && (
           <SidebarNavGroup
 
             label="Administration"
@@ -855,13 +867,15 @@ function Dashboard() {
             active={ADMIN_MENUS.has(activeMenu)}
 
           />
+          )}
 
 
 
-          {sidebarOpen && administrationOpen && (
+          {permission.canViewAdminMenu && sidebarOpen && administrationOpen && (
 
             <ul className="submenu">
 
+              {permission.canViewUsersAdmin && (
               <SidebarItem
 
                 label="Users"
@@ -875,7 +889,9 @@ function Dashboard() {
                 onClick={() => handleMenuSelect("users")}
 
               />
+              )}
 
+              {permission.canViewGroupsAdmin && (
               <SidebarItem
 
                 label="Groups"
@@ -889,6 +905,7 @@ function Dashboard() {
                 onClick={() => handleMenuSelect("groups")}
 
               />
+              )}
 
             </ul>
 
@@ -995,57 +1012,57 @@ function Dashboard() {
 
               {activeMenu === "dashboard" && <DashboardHome />}
 
-              {activeMenu === "parts" && <Parts searchText={contentSearch} />}
+              {activeMenu === "parts" && permission.canViewParts && (
+                <Parts searchText={contentSearch} />
+              )}
 
-              {activeMenu === "docs" && <Docs searchText={contentSearch} />}
+              {activeMenu === "docs" && permission.canViewDocs && (
+                <Docs searchText={contentSearch} />
+              )}
 
-              {activeMenu === "forms-builder" && (
+              {activeMenu === "forms-builder" && permission.canCreateForm && (
 
                 <Forms searchText={contentSearch} view="builder" />
 
               )}
 
-              {activeMenu === "forms-saved" && (
+              {activeMenu === "forms-saved" && permission.canViewForms && (
 
                 <Forms searchText={contentSearch} view="saved" />
 
               )}
 
-              {activeMenu === "training-courses" && (
-                <TrainingCourses searchText={contentSearch} />
-              )}
-
-              {activeMenu === "training-records" && (
+              {activeMenu === "training-records" && permission.canViewTraining && (
                 <TrainingRecords searchText={contentSearch} />
               )}
 
-              {activeMenu === "training-curriculum" && (
+              {activeMenu === "training-curriculum" && permission.canViewTraining && (
                 <TrainingCurriculum searchText={contentSearch} />
               )}
 
-              {activeMenu === "training-qualification" && (
-                <QualificationMatrix searchText={contentSearch} />
-              )}
-
-              {activeMenu === "approvals-pending" && (
+              {activeMenu === "approvals-pending" && permission.canViewApprovals && (
                 <Approvals view="pending" searchText={contentSearch} />
               )}
 
-              {activeMenu === "approvals-my" && (
+              {activeMenu === "approvals-my" && permission.canViewApprovals && (
                 <Approvals view="my" searchText={contentSearch} />
               )}
 
-              {activeMenu === "approvals-approved" && (
+              {activeMenu === "approvals-approved" && permission.canViewApprovals && (
                 <Approvals view="approved" searchText={contentSearch} />
               )}
 
-              {activeMenu === "approvals-rejected" && (
+              {activeMenu === "approvals-rejected" && permission.canViewApprovals && (
                 <Approvals view="rejected" searchText={contentSearch} />
               )}
 
-              {activeMenu === "users" && <Users searchText={contentSearch} />}
+              {activeMenu === "users" && permission.canViewUsersAdmin && (
+                <Users searchText={contentSearch} />
+              )}
 
-              {activeMenu === "groups" && <Groups searchText={contentSearch} />}
+              {activeMenu === "groups" && permission.canViewGroupsAdmin && (
+                <Groups searchText={contentSearch} />
+              )}
 
               {activeMenu === "settings" && <Settings />}
 

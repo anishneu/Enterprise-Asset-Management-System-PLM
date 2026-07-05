@@ -7,6 +7,7 @@ from services.audit_service import AuditService
 from constants.workflow import ENTITY_DOC
 from constants.audit import ACTION_CREATED, ACTION_UPDATED, ACTION_DELETED
 from routes.auth import get_current_user
+from security.permissions import Permissions, require_permission
 from utils.display import actor_display
 
 router = APIRouter(
@@ -23,13 +24,13 @@ def _actor_name(current_user: dict) -> str:
 @router.get("/")
 def get_docs(
     dtype: str | None = None,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.DOC_VIEW)),
 ):
     return DocService.get_all_docs(dtype=dtype)
 
 
 @router.get("/{doc_id}")
-def get_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
+def get_doc(doc_id: int, current_user: dict = Depends(require_permission(Permissions.DOC_VIEW))):
     doc = DocService.get_doc(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -37,7 +38,7 @@ def get_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/")
-def add_doc(doc: DocumentCreate, current_user: dict = Depends(get_current_user)):
+def add_doc(doc: DocumentCreate, current_user: dict = Depends(require_permission(Permissions.DOC_CREATE))):
     actor = _actor_name(current_user)
     print(f"Creating document requested by '{actor}'")
 
@@ -77,7 +78,7 @@ def add_doc(doc: DocumentCreate, current_user: dict = Depends(get_current_user))
 
 
 @router.put("/{doc_id}")
-def update_doc(doc_id: int, doc: DocumentUpdate, current_user: dict = Depends(get_current_user)):
+def update_doc(doc_id: int, doc: DocumentUpdate, current_user: dict = Depends(require_permission(Permissions.DOC_EDIT))):
     actor = _actor_name(current_user)
     print(f"Updating document {doc_id} requested by '{actor}'")
 
@@ -132,7 +133,7 @@ def update_doc(doc_id: int, doc: DocumentUpdate, current_user: dict = Depends(ge
 
 
 @router.delete("/{doc_id}")
-def delete_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
+def delete_doc(doc_id: int, current_user: dict = Depends(require_permission(Permissions.DOC_DELETE))):
     actor = _actor_name(current_user)
     print(f"Deleting document {doc_id} requested by '{actor}'")
 
@@ -164,7 +165,7 @@ def delete_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
 def submit_doc_for_review(
     doc_id: int,
     payload: dict = Body(default_factory=dict),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.DOC_EDIT)),
 ):
     actor = _actor_name(current_user)
     print(f"Submitting document {doc_id} for review by '{actor}'")
@@ -192,7 +193,7 @@ def submit_doc_for_review(
 
 
 @router.post("/{doc_id}/revise")
-def revise_doc(doc_id: int, current_user: dict = Depends(get_current_user)):
+def revise_doc(doc_id: int, current_user: dict = Depends(require_permission(Permissions.DOC_EDIT))):
     actor = _actor_name(current_user)
     print(f"Revising document {doc_id} requested by '{actor}'")
 

@@ -1,1 +1,0 @@
--- formstab uses `ftype` for form type (SOP, Policy, etc.)

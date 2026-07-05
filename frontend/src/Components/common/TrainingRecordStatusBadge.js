@@ -1,16 +1,16 @@
+import { recordStatusLabel, normalizeRecordStatus } from "../../constants/trainingPlm";
+
 function recordStatusSlug(status) {
-  const value = (status || "Pending").toLowerCase();
-  if (value === "completed") return "released";
-  if (value === "in progress") return "in-review";
-  if (value === "failed") return "rejected";
-  if (value === "expired") return "obsolete";
+  const normalized = normalizeRecordStatus(status).toLowerCase();
+  if (normalized === "completed") return "released";
+  if (normalized === "in progress") return "in-review";
   return "pending";
 }
 
 function TrainingRecordStatusBadge({ status }) {
-  const label = status || "Pending";
+  const label = recordStatusLabel(status);
   return (
-    <span className={`workflow-status workflow-status--${recordStatusSlug(label)}`}>
+    <span className={`workflow-status workflow-status--${recordStatusSlug(status)}`}>
       {label}
     </span>
   );

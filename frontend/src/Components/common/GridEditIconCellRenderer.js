@@ -16,7 +16,7 @@ function EditIcon() {
 }
 
 function GridEditIconCellRenderer({ data, context }) {
-  if (!data) return null;
+  if (!data || !context?.canEdit) return null;
 
   return (
     <button

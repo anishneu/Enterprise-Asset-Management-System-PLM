@@ -21,6 +21,7 @@ from services.user_notification_service import (
 )
 from constants.audit import ENTITY_USER, ACTION_CREATED, ACTION_UPDATED, ACTION_DELETED
 from routes.auth import get_current_user
+from security.permissions import Permissions, require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -93,12 +94,12 @@ def _send_welcome(
 
 
 @router.get("/")
-def get_users(current_user: dict = Depends(get_current_user)):
+def get_users(current_user: dict = Depends(require_permission(Permissions.USER_VIEW))):
     return list_users()
 
 
 @router.post("/")
-def add_user(user: UserCreate, current_user: dict = Depends(get_current_user)):
+def add_user(user: UserCreate, current_user: dict = Depends(require_permission(Permissions.USER_CREATE))):
     actor = _actor_name(current_user)
     print(f"Creating Keycloak user '{user.username}' requested by '{actor}'")
 
@@ -163,7 +164,7 @@ def add_user(user: UserCreate, current_user: dict = Depends(get_current_user)):
 
 
 @router.put("/{user_id}")
-def edit_user(user_id: str, user: UserUpdate, current_user: dict = Depends(get_current_user)):
+def edit_user(user_id: str, user: UserUpdate, current_user: dict = Depends(require_permission(Permissions.USER_EDIT))):
     actor = _actor_name(current_user)
     print(f"Updating Keycloak user '{user_id}' requested by '{actor}'")
 
@@ -214,7 +215,7 @@ def edit_user(user_id: str, user: UserUpdate, current_user: dict = Depends(get_c
 
 
 @router.delete("/{user_id}")
-def remove_user(user_id: str, current_user: dict = Depends(get_current_user)):
+def remove_user(user_id: str, current_user: dict = Depends(require_permission(Permissions.USER_DELETE))):
     actor = _actor_name(current_user)
     print(f"Deleting Keycloak user '{user_id}' requested by '{actor}'")
 

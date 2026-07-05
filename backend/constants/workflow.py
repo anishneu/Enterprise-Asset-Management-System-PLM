@@ -1,5 +1,6 @@
 ENTITY_FORM = "form"
 ENTITY_DOC = "doc"
+ENTITY_CURRICULUM = "curriculum"
 
 STATUS_DRAFT = "Draft"
 STATUS_PENDING = "Pending Approval"

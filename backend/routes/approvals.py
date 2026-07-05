@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 
 from routes.auth import get_current_user
+from security.permissions import Permissions, require_permission
 from services.workflow_service import WorkflowService
 
 router = APIRouter(
@@ -13,7 +14,7 @@ router = APIRouter(
 @router.get("/")
 def list_approval_requests(
     view: str = Query(default="pending"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.AR_VIEW)),
 ):
     allowed = {"pending", "my", "approved", "rejected"}
     if view not in allowed:
@@ -24,7 +25,7 @@ def list_approval_requests(
 @router.get("/{request_id}")
 def get_approval_request(
     request_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.AR_VIEW)),
 ):
     request = WorkflowService.get_request(request_id)
     if not request:
@@ -36,7 +37,7 @@ def get_approval_request(
 def approve_request(
     request_id: int,
     payload: dict = Body(default_factory=dict),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.AR_APPROVE)),
 ):
     comments = payload.get("comments") or payload.get("comment") or None
 
@@ -54,7 +55,7 @@ def approve_request(
 def reject_request(
     request_id: int,
     payload: dict = Body(default_factory=dict),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.AR_REJECT)),
 ):
     comments = payload.get("comments") or payload.get("comment") or ""
 

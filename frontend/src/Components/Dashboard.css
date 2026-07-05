@@ -1596,6 +1596,43 @@ body,
   overflow-x: auto;
 }
 
+.grid-table-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 12px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--tv-border);
+  border-radius: var(--tv-radius-md);
+  background: linear-gradient(180deg, #fafbfc 0%, var(--tv-surface) 100%);
+  flex-shrink: 0;
+}
+
+.grid-table-header .grid-table-toolbar {
+  margin-bottom: 0;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.grid-table-header--inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.grid-table-header--inline .grid-table-instructions {
+  flex: 1;
+  min-width: 0;
+}
+
+.grid-table-instructions {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--tv-text-muted);
+  line-height: 1.45;
+}
+
 .grid-table-toolbar input,
 .grid-table-toolbar select,
 .grid-table-toolbar button {
@@ -1680,6 +1717,7 @@ body,
   flex-wrap: nowrap;
   flex: 1;
   min-width: 0;
+  justify-content: flex-end;
 }
 
 .grid-table-toolbar-divider {

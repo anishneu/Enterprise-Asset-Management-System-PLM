@@ -23,9 +23,12 @@ function courseFieldName(courseId) {
 
 function statusSymbol(status) {
   if (!status) return "—";
+  if (status === "Expired") return "⌛";
+  if (status === "Failed") return "↺";
+  if (status === "In Progress") return "◔";
   if (status === "Completed") return "✔";
-  if (status === "Pending") return "…";
-  return "!";
+  if (status === "Pending") return "○";
+  return status;
 }
 
 function compareValues(a, b) {
@@ -146,17 +149,16 @@ function QualificationMatrix({ searchText = "" }) {
 
   return (
     <div className="training-plm-page qualification-matrix-page grid-page">
-      <div className="training-plm-toolbar">
-        <div>
-          <h3 className="training-plm-title">Qualification matrix</h3>
-          <p className="training-plm-lead">
-            Trainee competency status derived from training records. Course cells: ✔ completed,
-            … pending, ! other, — not assigned.
-          </p>
+      <div className="grid-table-header grid-table-header--inline">
+        <p className="grid-table-instructions">
+          Trainee competency status derived from training records. Course cells: ○ assigned, ◔ in
+          progress, ✔ completed, ↺ retake needed, ⌛ expired, — not assigned.
+        </p>
+        <div className="grid-table-toolbar-actions">
+          <button type="button" className="parts-btn" onClick={fetchMatrix} disabled={loading}>
+            Refresh
+          </button>
         </div>
-        <button type="button" className="parts-btn" onClick={fetchMatrix} disabled={loading}>
-          Refresh
-        </button>
       </div>
 
       <div className="qualification-kendo-grid-wrap">
@@ -191,8 +193,7 @@ function QualificationMatrix({ searchText = "" }) {
             />
           ))}
           <GridNoRecords>
-            No qualification data yet. Release a curriculum or course, assign trainees, then return
-            here.
+            No qualification data yet. Publish and assign a curriculum, then return here.
           </GridNoRecords>
         </Grid>
       </div>

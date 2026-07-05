@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from keycloak.exceptions import KeycloakPostError
 
 from routes.auth import get_current_user
+from security.permissions import Permissions, require_permission
 from schemas.group import GroupUpdate
 from services.keycloak_service import get_group, list_assignable_roles, list_groups, update_group
 from services.audit_service import AuditService
@@ -15,7 +16,7 @@ router = APIRouter(
 
 
 @router.get("/")
-def get_groups(current_user: dict = Depends(get_current_user)):
+def get_groups(current_user: dict = Depends(require_permission(Permissions.GROUP_VIEW))):
     try:
         return list_groups()
     except Exception as err:
@@ -26,12 +27,12 @@ def get_groups(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/meta/roles")
-def get_assignable_roles(current_user: dict = Depends(get_current_user)):
+def get_assignable_roles(current_user: dict = Depends(require_permission(Permissions.GROUP_EDIT))):
     return list_assignable_roles()
 
 
 @router.get("/{group_id}")
-def get_group_record(group_id: str, current_user: dict = Depends(get_current_user)):
+def get_group_record(group_id: str, current_user: dict = Depends(require_permission(Permissions.GROUP_VIEW))):
     try:
         group = get_group(group_id)
     except Exception as err:
@@ -49,7 +50,7 @@ def get_group_record(group_id: str, current_user: dict = Depends(get_current_use
 def edit_group(
     group_id: str,
     group: GroupUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.GROUP_EDIT)),
 ):
     existing = get_group(group_id)
     if not existing:

@@ -17,6 +17,7 @@ from routes.groups import router as groups_router
 from routes.approvals import router as approvals_router
 from routes.audit import router as audit_router
 from routes.training_plm import router as training_plm_router
+from routes.me import router as me_router
 from config import ADMIN_NOTIFY_EMAIL
 from services.email_service import smtp_config_source, smtp_configured
 
@@ -59,3 +60,4 @@ app.include_router(groups_router)
 app.include_router(approvals_router)
 app.include_router(audit_router)
 app.include_router(training_plm_router)
+app.include_router(me_router)

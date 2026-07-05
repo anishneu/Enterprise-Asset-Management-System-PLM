@@ -1,4 +1,4 @@
-import { ROLE_PERMISSIONS } from "../../constants/rolePermissions";
+import { ROLE_PERMISSIONS, normalizeRoleName } from "../../constants/rolePermissions";
 
 export const ASSIGNABLE_ROLES = Object.keys(ROLE_PERMISSIONS);
 
@@ -6,7 +6,8 @@ export function permissionsForRoles(roleNames) {
   const permissions = new Set();
 
   roleNames.forEach((role) => {
-    (ROLE_PERMISSIONS[role] || []).forEach((permission) => permissions.add(permission));
+    const normalized = normalizeRoleName(role);
+    (ROLE_PERMISSIONS[normalized] || []).forEach((permission) => permissions.add(permission));
   });
 
   return [...permissions].sort();

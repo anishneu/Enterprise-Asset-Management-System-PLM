@@ -13,6 +13,7 @@ import apiClient from "../api/client";
 import { DOCUMENT_FORM_TYPE, DOCUMENT_TYPES } from "../constants/documentCatalog";
 import { canSendToReview, canDelete, canEdit, canRevise, INITIAL_WORKFLOW_STATUS } from "../constants/workflowCatalog";
 import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
 import { nextRevision, revisionHelpText } from "../utils/revisionUtils";
 import { filterBySearch } from "../utils/filterBySearch";
 import DocAttachmentsPanel from "./docs/DocAttachmentsPanel";
@@ -78,6 +79,7 @@ function Docs({ searchText = "" }) {
   const gridApiRef = useRef(null);
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
+  const permission = usePermission();
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -826,6 +828,8 @@ function Docs({ searchText = "" }) {
       onReviseDoc: reviseDoc,
       onSelectAttachment: handleSelectAttachment,
       selectedAttachmentId: selectedAttachment?.id,
+      canEditDoc: permission.canEditDoc,
+      canDeleteDoc: permission.canDeleteDoc,
     }),
     [
       expandedDocId,
@@ -835,6 +839,8 @@ function Docs({ searchText = "" }) {
       reviseDoc,
       handleSelectAttachment,
       selectedAttachment?.id,
+      permission.canEditDoc,
+      permission.canDeleteDoc,
     ]
   );
 
@@ -864,7 +870,8 @@ function Docs({ searchText = "" }) {
   );
 
   const columnDefs = useMemo(
-    () => [
+    () => {
+      const cols = [
       {
         field: "dname",
         headerName: "Document Name",
@@ -930,7 +937,9 @@ function Docs({ searchText = "" }) {
           return params.data.created || params.data.updated || "—";
         },
       },
-      {
+      ];
+      if (permission.canEditDoc || permission.canDeleteDoc) {
+        cols.push({
         field: "actions",
         headerName: "Actions",
         minWidth: 140,
@@ -938,9 +947,11 @@ function Docs({ searchText = "" }) {
         sortable: false,
         filter: false,
         cellRenderer: DocActionsCellRenderer,
-      },
-    ],
-    []
+        });
+      }
+      return cols;
+    },
+    [permission.canEditDoc, permission.canDeleteDoc]
   );
 
   const renderDocEditorPanels = () => {
@@ -1123,9 +1134,12 @@ function Docs({ searchText = "" }) {
         overlayNoRowsTemplate="<span>No documents found.</span>"
         toolbarActions={
           <>
+            {permission.canCreateDoc && (
             <button type="button" className="parts-btn primary" onClick={openCreateSetup}>
               Create
             </button>
+            )}
+            {permission.canEditDoc && (
             <button
               type="button"
               className="parts-btn"
@@ -1134,6 +1148,8 @@ function Docs({ searchText = "" }) {
             >
               Send to review
             </button>
+            )}
+            {permission.canDeleteDoc && (
             <button
               type="button"
               className="parts-btn danger"
@@ -1142,6 +1158,7 @@ function Docs({ searchText = "" }) {
             >
               Delete
             </button>
+            )}
             {selectedIds.length > 0 && (
               <span className="parts-selection-count">{selectedIds.length} selected</span>
             )}

@@ -1,7 +1,35 @@
 export const COURSE_STATUSES = ["Draft", "Released", "Obsolete"];
-export const CURRICULUM_STATUSES = ["Draft", "Released", "Obsolete"];
-export const ASSIGNMENT_STATUSES = ["Assigned", "In Progress", "Completed", "Expired"];
-export const RECORD_STATUSES = ["Pending", "In Progress", "Completed", "Failed", "Expired"];
+export const CURRICULUM_STATUSES = ["Draft", "Pending Approval", "Released", "Obsolete"];
+export const ASSIGNMENT_STATUSES = ["Assigned", "In Progress", "Completed", "Expired", "Reassigned"];
+export const RECORD_STATUSES = ["Assigned", "In Progress", "Completed"];
+
+export function normalizeRecordStatus(status) {
+  const value = (status || "Assigned").trim();
+  if (value === "Completed") return "Completed";
+  if (
+    value === "In Progress" ||
+    value === "Pending Evaluation" ||
+    value === "Pending" ||
+    value === "Retake" ||
+    value === "Reassigned"
+  ) {
+    return "In Progress";
+  }
+  return "Assigned";
+}
+
+export function recordStatusLabel(status) {
+  const normalized = normalizeRecordStatus(status);
+  if (normalized === "In Progress") return "In Progress";
+  return normalized;
+}
+
+export function curriculumStatusLabel(status) {
+  if (status === "Released") return "Published";
+  if (status === "Obsolete") return "Archived";
+  if (status === "Pending Approval") return "Pending Approval";
+  return status || "Draft";
+}
 
 export function courseStatusClass(status) {
   const value = (status || "Draft").toLowerCase();
@@ -11,10 +39,9 @@ export function courseStatusClass(status) {
 }
 
 export function recordStatusClass(status) {
-  const value = (status || "Pending").toLowerCase();
-  if (value === "completed") return "training-status--completed";
-  if (value === "in progress") return "training-status--progress";
-  if (value === "failed" || value === "expired") return "training-status--danger";
+  const normalized = normalizeRecordStatus(status).toLowerCase();
+  if (normalized === "completed") return "training-status--completed";
+  if (normalized === "in progress") return "training-status--progress";
   return "training-status--pending";
 }
 

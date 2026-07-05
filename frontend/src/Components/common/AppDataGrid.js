@@ -47,6 +47,7 @@ function AppDataGrid({
   showToolbar = true,
   showSerialColumn = false,
   searchPlaceholder = "Search table...",
+  toolbarInstructions = null,
   toolbarActions = null,
   pagination = true,
   paginationPageSize = 10,
@@ -86,6 +87,14 @@ function AppDataGrid({
     event.api.refreshCells({ columns: ["serial"], force: true });
   }, [showSerialColumn]);
 
+  const refreshSerialNumbers = useCallback(
+    (event) => {
+      if (!showSerialColumn) return;
+      event.api.refreshCells({ columns: ["serial"], force: true });
+    },
+    [showSerialColumn]
+  );
+
   const resolvedRowSelection = useMemo(() => {
     if (!rowSelection) return undefined;
     if (!isRowSelectable) return rowSelection;
@@ -94,35 +103,41 @@ function AppDataGrid({
 
   const fillHeight = domLayout !== "autoHeight";
 
+  const toolbarContent = showToolbar ? (
+    <>
+      <div className="grid-table-toolbar-filters">
+        <input
+          type="search"
+          className="grid-table-search"
+          placeholder={searchPlaceholder}
+          value={quickFilter}
+          onChange={(event) => setQuickFilter(event.target.value)}
+          aria-label={searchPlaceholder}
+        />
+        <button type="button" className="parts-btn" onClick={handleClearFilters}>
+          Clear filters
+        </button>
+      </div>
+      {toolbarActions && (
+        <>
+          <div className="grid-table-toolbar-divider" aria-hidden="true" />
+          <div className="grid-table-toolbar-actions">{toolbarActions}</div>
+        </>
+      )}
+    </>
+  ) : null;
+
   return (
     <div className="app-data-grid-wrap">
-      {showToolbar && (
-        <div className="grid-table-toolbar">
-          <div className="grid-table-toolbar-filters">
-            <input
-              type="search"
-              className="grid-table-search"
-              placeholder={searchPlaceholder}
-              value={quickFilter}
-              onChange={(event) => setQuickFilter(event.target.value)}
-              aria-label={searchPlaceholder}
-            />
-            <button
-              type="button"
-              className="parts-btn"
-              onClick={handleClearFilters}
-            >
-              Clear filters
-            </button>
+      {toolbarContent &&
+        (toolbarInstructions ? (
+          <div className="grid-table-header">
+            <div className="grid-table-instructions">{toolbarInstructions}</div>
+            <div className="grid-table-toolbar">{toolbarContent}</div>
           </div>
-          {toolbarActions && (
-            <>
-              <div className="grid-table-toolbar-divider" aria-hidden="true" />
-              <div className="grid-table-toolbar-actions">{toolbarActions}</div>
-            </>
-          )}
-        </div>
-      )}
+        ) : (
+          <div className="grid-table-toolbar">{toolbarContent}</div>
+        ))}
 
       <div
         className={`ag-theme-quartz app-data-grid${fillHeight ? " app-data-grid--fill" : ""}`}
@@ -143,6 +158,9 @@ function AppDataGrid({
           onSelectionChanged={onSelectionChanged}
           onRowClicked={onRowClicked}
           onPaginationChanged={handlePaginationChanged}
+          onSortChanged={refreshSerialNumbers}
+          onFilterChanged={refreshSerialNumbers}
+          onModelUpdated={refreshSerialNumbers}
           getRowClass={getRowClass}
           onGridReady={handleGridReady}
           loading={loading}
