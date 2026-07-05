@@ -3,13 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import apiClient from "../api/client";
 import AppDataGrid from "./common/AppDataGrid";
 import CourseActionsCellRenderer from "./common/CourseActionsCellRenderer";
-import WorkflowStatusBadge from "./common/WorkflowStatusBadge";
 import TagMultiSelect from "./common/TagMultiSelect";
 import { usePageInsight } from "./dashboard/PageInsightContext";
 import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
 import { TRAINING_FORM_TYPE } from "../constants/trainingCatalog";
 import { filterBySearch } from "../utils/filterBySearch";
-import { formatTrainingDateTime, toDateInputValue } from "../constants/trainingPlm";
 
 import "./Docs.css";
 import "./Training.css";
@@ -21,12 +20,9 @@ const emptyCourse = {
   category: "",
   revision: "A",
   form_id: "",
-  release_due_date: "",
   trainer_user_id: "",
   trainer_name: "",
   document_ids: [],
-  user_ids: [],
-  group_ids: [],
 };
 
 function resolveTrainerLabel(course, users) {
@@ -41,6 +37,7 @@ function resolveTrainerLabel(course, users) {
 function TrainingCourses({ searchText = "" }) {
   const { insight, setInsight } = usePageInsight();
   const feedback = useAppFeedback();
+  const permission = usePermission();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -49,7 +46,6 @@ function TrainingCourses({ searchText = "" }) {
   const [trainingForms, setTrainingForms] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [users, setUsers] = useState([]);
-  const [groups, setGroups] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(false);
 
   const isCreate = modal === "create";
@@ -70,16 +66,14 @@ function TrainingCourses({ searchText = "" }) {
   const fetchOptions = useCallback(async () => {
     setOptionsLoading(true);
     try {
-      const [formsRes, docsRes, usersRes, groupsRes] = await Promise.all([
+      const [formsRes, docsRes, usersRes] = await Promise.all([
         apiClient.get("/forms/", { params: { ftype: TRAINING_FORM_TYPE } }),
         apiClient.get("/docs"),
         apiClient.get("/users"),
-        apiClient.get("/groups"),
       ]);
       setTrainingForms(formsRes.data || []);
       setDocuments((docsRes.data || []).filter((doc) => doc.dstatus === "Released"));
       setUsers(usersRes.data || []);
-      setGroups(groupsRes.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -99,7 +93,6 @@ function TrainingCourses({ searchText = "" }) {
         "course_name",
         "category",
         "revision",
-        "status",
         "form_name",
         "trainer_name",
       ]),
@@ -113,24 +106,6 @@ function TrainingCourses({ searchText = "" }) {
         label: `${doc.dname || "Document"} (Rev ${doc.drev || "—"})`,
       })),
     [documents]
-  );
-
-  const userOptions = useMemo(
-    () =>
-      users.map((user) => ({
-        value: user.id,
-        label: user.username || user.name || user.id,
-      })),
-    [users]
-  );
-
-  const groupOptions = useMemo(
-    () =>
-      groups.map((group) => ({
-        value: group.id,
-        label: group.name || group.id,
-      })),
-    [groups]
   );
 
   const openCreate = () => {
@@ -149,12 +124,9 @@ function TrainingCourses({ searchText = "" }) {
         category: detail.category || "",
         revision: detail.revision || "A",
         form_id: detail.form_id ? String(detail.form_id) : "",
-        release_due_date: toDateInputValue(detail.release_due_date),
         trainer_user_id: detail.trainer_user_id || "",
         trainer_name: detail.trainer_name || "",
         document_ids: (detail.documents || []).map((item) => item.doc_id),
-        user_ids: (detail.assignees || []).map((item) => item.user_id),
-        group_ids: (detail.assignee_groups || []).map((item) => item.group_id),
       });
       setModal({ type: "edit", id: course.id });
     } catch (err) {
@@ -168,26 +140,14 @@ function TrainingCourses({ searchText = "" }) {
   };
 
   const saveSetup = async (courseId) => {
-    const groupNames = {};
-    form.group_ids.forEach((groupId) => {
-      const group = groups.find((item) => item.id === groupId);
-      if (group) groupNames[groupId] = group.name;
-    });
-
     await apiClient.put(`/training-plm/courses/${courseId}/setup`, {
       form_id: form.form_id === "" ? null : Number(form.form_id),
-      release_due_date: form.release_due_date
-        ? new Date(`${form.release_due_date}T00:00:00`).toISOString()
-        : null,
       trainer_user_id: form.trainer_user_id || null,
       trainer_name: form.trainer_name.trim() || null,
       documents: form.document_ids.map((docId, index) => ({
         doc_id: docId,
         sequence_order: index,
       })),
-      user_ids: form.user_ids,
-      group_ids: form.group_ids,
-      group_names: groupNames,
     });
   };
 
@@ -204,9 +164,6 @@ function TrainingCourses({ searchText = "" }) {
       category: form.category.trim() || null,
       revision: form.revision.trim() || "A",
       form_id: form.form_id === "" ? null : Number(form.form_id),
-      release_due_date: form.release_due_date
-        ? new Date(`${form.release_due_date}T00:00:00`).toISOString()
-        : null,
     };
 
     setSaving(true);
@@ -232,37 +189,6 @@ function TrainingCourses({ searchText = "" }) {
     }
   };
 
-  const releaseCourse = useCallback(
-    async (course) => {
-      const audienceCount = (course.assignee_count || 0) + (course.group_count || 0);
-      if (audienceCount === 0) {
-        feedback.error("Assign trainees or groups before releasing this course.");
-        return;
-      }
-      try {
-        await apiClient.post(`/training-plm/courses/${course.id}/release`);
-        feedback.success("Course released and training records created.");
-        await fetchCourses();
-      } catch (err) {
-        feedback.error(err.response?.data?.detail || "Failed to release course.");
-      }
-    },
-    [feedback, fetchCourses]
-  );
-
-  const reviseCourse = useCallback(
-    async (course) => {
-      try {
-        await apiClient.post(`/training-plm/courses/${course.id}/revise`);
-        feedback.success("New course revision created as Draft.");
-        await fetchCourses();
-      } catch (err) {
-        feedback.error(err.response?.data?.detail || "Failed to revise course.");
-      }
-    },
-    [feedback, fetchCourses]
-  );
-
   const selectCourse = useCallback(
     async (course) => {
       if (!course?.id) return;
@@ -275,8 +201,8 @@ function TrainingCourses({ searchText = "" }) {
           courseDetail: res.data,
           courseUsers: users,
           onCourseEdit: openEdit,
-          onCourseRelease: releaseCourse,
-          onCourseRevise: reviseCourse,
+          onCourseRelease: null,
+          onCourseRevise: null,
           auditEntity: {
             type: "training",
             id: course.id,
@@ -288,7 +214,7 @@ function TrainingCourses({ searchText = "" }) {
         feedback.error("Failed to load course details.");
       }
     },
-    [filtered.length, users, openEdit, releaseCourse, reviseCourse, setInsight, feedback]
+    [filtered.length, users, openEdit, setInsight, feedback]
   );
 
   useEffect(() => {
@@ -298,10 +224,10 @@ function TrainingCourses({ searchText = "" }) {
       selectedCount: prev.courseDetail ? 1 : 0,
       courseUsers: users,
       onCourseEdit: openEdit,
-      onCourseRelease: releaseCourse,
-      onCourseRevise: reviseCourse,
+      onCourseRelease: null,
+      onCourseRevise: null,
     }));
-  }, [filtered.length, users, openEdit, releaseCourse, reviseCourse, setInsight]);
+  }, [filtered.length, users, openEdit, setInsight]);
 
   const handleRowClicked = useCallback(
     (event) => {
@@ -319,26 +245,17 @@ function TrainingCourses({ searchText = "" }) {
   const courseGridContext = useMemo(
     () => ({
       onEditCourse: openEdit,
-      onReleaseCourse: releaseCourse,
-      onReviseCourse: reviseCourse,
+      canEditRecord: permission.canEditRecord,
     }),
-    [openEdit, releaseCourse, reviseCourse]
+    [openEdit, permission.canEditRecord]
   );
 
   const columnDefs = useMemo(
-    () => [
+    () => {
+      const cols = [
       { field: "course_code", headerName: "Code", flex: 0, width: 112, minWidth: 100 },
       { field: "course_name", headerName: "Course", flex: 1, minWidth: 200, tooltipField: "course_name" },
       { field: "revision", headerName: "Rev", flex: 0, width: 76, minWidth: 68 },
-      {
-        field: "status",
-        headerName: "Status",
-        flex: 0,
-        width: 120,
-        minWidth: 110,
-        cellClass: "training-status-cell",
-        cellRenderer: (params) => <WorkflowStatusBadge status={params.value} />,
-      },
       {
         field: "category",
         headerName: "Category",
@@ -375,53 +292,29 @@ function TrainingCourses({ searchText = "" }) {
         headerTooltip: "Number of linked documents",
         valueFormatter: (params) => params.value ?? 0,
       },
-      {
-        headerName: "Assignees",
+      ];
+      if (permission.canEditRecord) {
+        cols.push({
+        colId: "actions",
+        headerName: "Actions",
         flex: 0,
         width: 96,
         minWidth: 88,
-        headerTooltip: "Trainees and groups assigned before release",
-        valueGetter: (params) =>
-          (params.data?.assignee_count || 0) + (params.data?.group_count || 0),
-      },
-      {
-        field: "release_due_date",
-        headerName: "Due date",
-        flex: 0,
-        width: 168,
-        minWidth: 156,
-        cellClass: "training-datetime-cell",
-        valueFormatter: (params) => formatTrainingDateTime(params.value),
-        tooltipValueGetter: (params) => formatTrainingDateTime(params.value),
-      },
-      {
-        headerName: "Actions",
-        flex: 0,
-        width: 108,
-        minWidth: 100,
-        maxWidth: 116,
+        maxWidth: 104,
         sortable: false,
         filter: false,
+        suppressHeaderMenuButton: true,
         cellClass: "training-actions-col",
         cellRenderer: CourseActionsCellRenderer,
-      },
-    ],
-    [users]
+        });
+      }
+      return cols;
+    },
+    [users, permission.canEditRecord]
   );
 
   return (
     <div className="training-plm-page training-courses-page grid-page">
-      <div className="training-plm-toolbar">
-        <div>
-          <p className="training-plm-lead">
-            Define courses with training forms, documents, trainer, and trainees — then release to create records.
-          </p>
-        </div>
-        <button type="button" className="parts-btn primary" onClick={openCreate}>
-          New course
-        </button>
-      </div>
-
       <div className="training-plm-grid-wrap">
         <AppDataGrid
           rowData={filtered}
@@ -432,6 +325,20 @@ function TrainingCourses({ searchText = "" }) {
           onRowClicked={handleRowClicked}
           getRowClass={getRowClass}
           getRowId={(params) => String(params.data.id)}
+          searchPlaceholder="Search courses..."
+          toolbarInstructions="Define reusable course content with linked forms, documents, and trainer details. Courses linked to curricula sync automatically when templates are saved."
+          toolbarActions={
+            <>
+              <button type="button" className="parts-btn" onClick={fetchCourses} disabled={loading}>
+                Refresh
+              </button>
+              {permission.canCreateRecord && (
+                <button type="button" className="parts-btn primary" onClick={openCreate}>
+                  New course
+                </button>
+              )}
+            </>
+          }
         />
       </div>
 
@@ -543,36 +450,6 @@ function TrainingCourses({ searchText = "" }) {
                   value={form.trainer_name}
                   placeholder="External trainer or override name"
                   onChange={(e) => setForm((p) => ({ ...p, trainer_name: e.target.value }))}
-                />
-              </label>
-            </div>
-
-            <div className="training-plm-form-section">
-              <h4>Trainees (required before release)</h4>
-              <TagMultiSelect
-                label="Trainees"
-                options={userOptions}
-                value={form.user_ids}
-                onChange={(user_ids) => setForm((p) => ({ ...p, user_ids }))}
-                placeholder="Select trainees"
-                getOptionValue={(option) => option.value}
-                getOptionLabel={(option) => option.label}
-              />
-              <TagMultiSelect
-                label="Groups"
-                options={groupOptions}
-                value={form.group_ids}
-                onChange={(group_ids) => setForm((p) => ({ ...p, group_ids }))}
-                placeholder="Select groups"
-                getOptionValue={(option) => option.value}
-                getOptionLabel={(option) => option.label}
-              />
-              <label>
-                Due date (for assigned records)
-                <input
-                  type="date"
-                  value={form.release_due_date}
-                  onChange={(e) => setForm((p) => ({ ...p, release_due_date: e.target.value }))}
                 />
               </label>
             </div>

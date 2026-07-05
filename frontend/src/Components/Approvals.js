@@ -7,6 +7,7 @@ import WorkflowStatusBadge from "./common/WorkflowStatusBadge";
 import { entityTypeLabel } from "../constants/workflowCatalog";
 import { usePageInsight } from "./dashboard/PageInsightContext";
 import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
 import { filterBySearch } from "../utils/filterBySearch";
 
 import "./Approvals.css";
@@ -35,6 +36,7 @@ function formatTimestamp(value) {
 function Approvals({ view = "pending", searchText = "" }) {
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
+  const permission = usePermission();
   const copy = VIEW_COPY[view] || VIEW_COPY.pending;
 
   const [requests, setRequests] = useState([]);
@@ -165,8 +167,10 @@ function Approvals({ view = "pending", searchText = "" }) {
       actingId,
       onApprove: openApproveDialog,
       onReject: openRejectDialog,
+      canApprove: permission.canApprove,
+      canReject: permission.canReject,
     }),
-    [actingId, openApproveDialog, openRejectDialog]
+    [actingId, openApproveDialog, openRejectDialog, permission.canApprove, permission.canReject]
   );
 
   const columnDefs = useMemo(() => {
@@ -224,7 +228,7 @@ function Approvals({ view = "pending", searchText = "" }) {
       },
     ];
 
-    if (view === "pending") {
+    if (view === "pending" && (permission.canApprove || permission.canReject)) {
       return [
         ...base,
         {
@@ -256,7 +260,7 @@ function Approvals({ view = "pending", searchText = "" }) {
         valueGetter: (params) => params.data?.comments || "—",
       },
     ];
-  }, [view]);
+  }, [view, permission.canApprove, permission.canReject]);
 
   const getRowId = useCallback((params) => String(params.data.request_id), []);
 
@@ -268,6 +272,7 @@ function Approvals({ view = "pending", searchText = "" }) {
         context={gridContext}
         getRowId={getRowId}
         loading={loading}
+        showSerialColumn
         searchPlaceholder="Search approvals..."
         overlayNoRowsTemplate={`<span>${copy.empty}</span>`}
       />

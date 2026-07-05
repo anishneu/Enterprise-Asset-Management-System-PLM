@@ -3,9 +3,14 @@ function ApprovalActionsCellRenderer({ data, context }) {
 
   const actingId = context?.actingId;
   const busy = actingId === data.request_id;
+  const canApprove = Boolean(context?.canApprove);
+  const canReject = Boolean(context?.canReject);
+
+  if (!canApprove && !canReject) return null;
 
   return (
     <div className="approvals-row-actions">
+      {canApprove && (
       <button
         type="button"
         className="parts-btn primary approvals-btn-sm"
@@ -17,6 +22,8 @@ function ApprovalActionsCellRenderer({ data, context }) {
       >
         Approve
       </button>
+      )}
+      {canReject && (
       <button
         type="button"
         className="parts-btn danger approvals-btn-sm"
@@ -28,6 +35,7 @@ function ApprovalActionsCellRenderer({ data, context }) {
       >
         Reject
       </button>
+      )}
     </div>
   );
 }

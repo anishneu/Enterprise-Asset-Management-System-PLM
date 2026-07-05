@@ -3,6 +3,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from keycloak import KeycloakOpenID
 from jose import jwt
 
+from constants.role_permissions import permissions_for_user_role, resolve_primary_role
+
 security = HTTPBearer()
 
 keycloak_openid = KeycloakOpenID(
@@ -10,6 +12,14 @@ keycloak_openid = KeycloakOpenID(
     client_id="ams-react",
     realm_name="amsrealm"
 )
+
+
+def attach_user_permissions(decoded: dict) -> dict:
+    realm_roles = (decoded.get("realm_access") or {}).get("roles") or []
+    primary_role = resolve_primary_role(realm_roles)
+    decoded["_role"] = primary_role
+    decoded["_permissions"] = permissions_for_user_role(primary_role)
+    return decoded
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
@@ -36,7 +46,7 @@ def get_current_user(
         username = decoded.get("preferred_username") or decoded.get("sub")
         print(f"Authenticated request from: {username}")
 
-        return decoded
+        return attach_user_permissions(decoded)
 
     except HTTPException:
         raise

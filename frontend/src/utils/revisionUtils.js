@@ -1,9 +1,18 @@
 /**
- * Compute the next revision label for PLM revise actions.
- * Supports letter revisions (A → B), integers (1 → 2), and decimals (1.1 → 1.2).
+ * PLM revision helpers.
+ * Letters: A → B → C
+ * Numbers: 1 → 1.1 → 1.2 → … → 1.5 → 2 → 2.1 → 2.2 …
  */
+export function normalizeRevision(value, defaultValue = "A") {
+  const revision = String(value || defaultValue).trim() || defaultValue;
+  if (/^[A-Za-z]+$/.test(revision)) {
+    return revision.toUpperCase();
+  }
+  return revision;
+}
+
 export function nextRevision(current) {
-  const revision = String(current || "1").trim() || "1";
+  const revision = normalizeRevision(current);
 
   if (/^[A-Za-z]+$/.test(revision)) {
     const letter = revision.toUpperCase();
@@ -15,18 +24,21 @@ export function nextRevision(current) {
 
   const decimalMatch = revision.match(/^(\d+)\.(\d+)$/);
   if (decimalMatch) {
-    const major = decimalMatch[1];
-    const minor = Number(decimalMatch[2]) + 1;
-    return `${major}.${minor}`;
+    const major = Number(decimalMatch[1]);
+    const minor = Number(decimalMatch[2]);
+    if (minor >= 5) {
+      return String(major + 1);
+    }
+    return `${major}.${minor + 1}`;
   }
 
   if (/^\d+$/.test(revision)) {
-    return String(Number(revision) + 1);
+    return `${Number(revision)}.1`;
   }
 
   return `${revision}.1`;
 }
 
 export function revisionHelpText() {
-  return "Approval keeps the same revision. After release, use Create revision to move A → B, 1 → 2, or 1.1 → 1.2.";
+  return "Letters advance A → B → C. Numbers advance 1 → 1.1 → 1.2 → 1.5 → 2 → 2.1 → 2.2.";
 }

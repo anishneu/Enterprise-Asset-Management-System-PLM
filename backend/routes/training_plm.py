@@ -6,6 +6,8 @@ from schemas.training_plm import (
     CurriculumAssignRequest,
     CurriculumCoursesUpdate,
     CurriculumCreate,
+    CurriculumRuleUpdate,
+    CurriculumSubmitReview,
     CurriculumUpdate,
     TrainingCourseCreate,
     TrainingCourseUpdate,
@@ -14,6 +16,7 @@ from schemas.training_plm import (
 from services.audit_service import AuditService
 from services.keycloak_service import list_users
 from services.training_plm_service import TrainingPlmService
+from services.workflow_service import WorkflowService, resolve_user_by_username
 from constants.audit import ENTITY_TRAINING, ACTION_CREATED, ACTION_UPDATED
 
 router = APIRouter(
@@ -170,7 +173,11 @@ def create_curriculum(
     payload: CurriculumCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    return TrainingPlmService.create_curriculum(payload.model_dump(), _actor(current_user))
+    return TrainingPlmService.create_curriculum(
+        payload.model_dump(),
+        _actor(current_user),
+        _user_display_map(),
+    )
 
 
 @router.put("/curricula/{curriculum_id}")
@@ -183,10 +190,22 @@ def update_curriculum(
         updated = TrainingPlmService.update_curriculum(
             curriculum_id,
             payload.model_dump(exclude_unset=True),
+            _user_display_map(),
         )
         if not updated:
             raise HTTPException(status_code=404, detail="Curriculum not found")
         return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/curricula/{curriculum_id}")
+def delete_curriculum(curriculum_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        result = TrainingPlmService.delete_curriculum(curriculum_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -209,10 +228,87 @@ def update_curriculum_courses(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.put("/curricula/{curriculum_id}/rules")
+def update_curriculum_rules(
+    curriculum_id: int,
+    payload: CurriculumRuleUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        updated = TrainingPlmService.set_curriculum_rules(
+            curriculum_id,
+            payload.model_dump(),
+            _user_display_map(),
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+        return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/curricula/{curriculum_id}/submit-review")
+def submit_curriculum_for_review(
+    curriculum_id: int,
+    payload: CurriculumSubmitReview,
+    current_user: dict = Depends(get_current_user),
+):
+    body = payload.model_dump(exclude_unset=True)
+    approver_username = (body.get("approver") or body.get("approver_user_id") or "").strip()
+    if not approver_username:
+        raise HTTPException(status_code=400, detail="Approver is required")
+
+    approver_user = resolve_user_by_username(approver_username)
+    if not approver_user and body.get("approver_user_id"):
+        approver_user = {"id": body["approver_user_id"], "username": approver_username}
+
+    if not approver_user or not approver_user.get("username"):
+        raise HTTPException(status_code=400, detail="Approver not found")
+
+    try:
+        updated = WorkflowService.submit_curriculum_for_review(
+            curriculum_id,
+            approver_username=approver_user["username"],
+            effective_date=body.get("effective_date"),
+            requester=current_user,
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+        return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/curricula/{curriculum_id}/release")
 def release_curriculum(curriculum_id: int, current_user: dict = Depends(get_current_user)):
     try:
-        updated = TrainingPlmService.release_curriculum(curriculum_id)
+        updated = TrainingPlmService.release_curriculum(
+            curriculum_id,
+            _user_display_map(),
+            _actor(current_user),
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+        return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/curricula/{curriculum_id}/approve")
+def approve_curriculum(curriculum_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        updated = TrainingPlmService.approve_curriculum(curriculum_id)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+        return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/curricula/{curriculum_id}/archive")
+def archive_curriculum(curriculum_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        updated = TrainingPlmService.archive_curriculum(curriculum_id)
         if not updated:
             raise HTTPException(status_code=404, detail="Curriculum not found")
         return updated
@@ -292,10 +388,18 @@ def update_training_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Training record not found")
 
-    updated = TrainingPlmService.update_record(
-        record_id,
-        payload.model_dump(exclude_unset=True),
-    )
+    try:
+        updated = TrainingPlmService.update_record(
+            record_id,
+            payload.model_dump(exclude_unset=True),
+            actor_sub=current_user.get("sub"),
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 403 if "Only the assigned trainee" in message else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    if not updated:
+        raise HTTPException(status_code=404, detail="Training record not found")
     AuditService.log(
         entity_type=ENTITY_TRAINING,
         entity_id=record_id,
@@ -306,7 +410,7 @@ def update_training_record(
         changes=AuditService.summarize_changes(
             existing,
             updated,
-            ["status", "score", "trainer", "completion_date"],
+            ["status", "trainer", "completion_date"],
         ),
     )
     return updated

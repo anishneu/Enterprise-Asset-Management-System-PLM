@@ -1,5 +1,5 @@
 function UserActionsCellRenderer({ data, context }) {
-  if (!data?.id) return null;
+  if (!data?.id || !context?.canEditUser) return null;
 
   return (
     <div className="user-actions-cell">

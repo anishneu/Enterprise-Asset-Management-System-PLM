@@ -7,6 +7,7 @@ import apiClient from "../api/client";
 import { usePageInsight } from "./dashboard/PageInsightContext";
 import { filterBySearch } from "../utils/filterBySearch";
 import { useAppFeedback } from "../context/AppFeedbackContext";
+import usePermission from "../hooks/usePermission";
 
 import "./Users.css";
 
@@ -40,6 +41,7 @@ function Users({ searchText = "" }) {
   const [actionMenu, setActionMenu] = useState(null);
   const { setInsight } = usePageInsight();
   const feedback = useAppFeedback();
+  const permission = usePermission();
 
   const filteredUsers = useMemo(
     () =>
@@ -188,12 +190,14 @@ function Users({ searchText = "" }) {
     () => ({
       onOpenUserMenu: handleOpenUserMenu,
       onUserAction: handleUserAction,
+      canEditUser: permission.canEditUser,
     }),
-    [handleOpenUserMenu, handleUserAction]
+    [handleOpenUserMenu, handleUserAction, permission.canEditUser]
   );
 
   const columnDefs = useMemo(
-    () => [
+    () => {
+      const cols = [
       { field: "username", headerName: "Username", minWidth: 150 },
       { field: "firstName", headerName: "First Name", minWidth: 140, flex: 0.8 },
       { field: "lastName", headerName: "Last Name", minWidth: 140, flex: 0.8 },
@@ -205,7 +209,9 @@ function Users({ searchText = "" }) {
         maxWidth: 120,
         valueGetter: (params) => params.data.status || (params.data.enabled ? "Active" : "Inactive"),
       },
-      {
+      ];
+      if (permission.canEditUser) {
+        cols.push({
         headerName: "",
         colId: "actions",
         maxWidth: 72,
@@ -213,9 +219,11 @@ function Users({ searchText = "" }) {
         filter: false,
         cellClass: "user-actions-column",
         cellRenderer: UserActionsCellRenderer,
-      },
-    ],
-    []
+        });
+      }
+      return cols;
+    },
+    [permission.canEditUser]
   );
 
   const openAddModal = () => {
@@ -426,10 +434,14 @@ function Users({ searchText = "" }) {
         searchPlaceholder="Search users..."
         overlayNoRowsTemplate="<span>No users found.</span>"
         toolbarActions={
+          (permission.canCreateUser || permission.canDeleteUser) ? (
           <>
+            {permission.canCreateUser && (
             <button type="button" className="parts-btn primary" onClick={openAddModal}>
               + Add User
             </button>
+            )}
+            {permission.canDeleteUser && (
             <button
               type="button"
               className="parts-btn danger"
@@ -438,10 +450,12 @@ function Users({ searchText = "" }) {
             >
               Delete
             </button>
+            )}
             {selectedIds.length > 0 && (
               <span className="parts-selection-count">{selectedIds.length} selected</span>
             )}
           </>
+          ) : null
         }
       />
 

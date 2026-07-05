@@ -4,8 +4,14 @@ import ActionIconButton from "./ActionIconButton";
 function DocActionsCellRenderer({ data, context }) {
   if (!data?.id || data.detailRow) return null;
 
+  const canEdit = Boolean(context?.canEditDoc);
+  const canDelete = Boolean(context?.canDeleteDoc);
+
+  if (!canEdit && !canDelete) return null;
+
   return (
     <div className="forms-saved-row-actions">
+      {canEdit && (
       <ActionIconButton
         label="Edit"
         className="group-edit-btn"
@@ -27,7 +33,8 @@ function DocActionsCellRenderer({ data, context }) {
           <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
         </svg>
       </ActionIconButton>
-      {canRevise(data.dstatus) && (
+      )}
+      {canEdit && canRevise(data.dstatus) && (
         <ActionIconButton
           label="Revise"
           className="group-edit-btn"
@@ -50,6 +57,7 @@ function DocActionsCellRenderer({ data, context }) {
           </svg>
         </ActionIconButton>
       )}
+      {canDelete && (
       <ActionIconButton
         label="Delete"
         className="forms-delete-btn"
@@ -74,6 +82,7 @@ function DocActionsCellRenderer({ data, context }) {
           <path d="M14 11v6" />
         </svg>
       </ActionIconButton>
+      )}
     </div>
   );
 }

@@ -56,5 +56,6 @@ export function isReadOnly(status) {
 export function entityTypeLabel(entityType) {
   if (entityType === "form") return "Form";
   if (entityType === "doc") return "Document";
+  if (entityType === "curriculum") return "Curriculum";
   return entityType || "Item";
 }

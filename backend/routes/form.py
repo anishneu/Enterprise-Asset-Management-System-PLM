@@ -8,6 +8,7 @@ from services.audit_service import AuditService
 from constants.workflow import ENTITY_FORM
 from constants.audit import ACTION_CREATED, ACTION_UPDATED, ACTION_DELETED
 from routes.auth import get_current_user
+from security.permissions import Permissions, require_permission
 from utils.display import actor_display
 
 router = APIRouter(
@@ -18,14 +19,17 @@ router = APIRouter(
 
 
 @router.get("/")
-def get_forms(ftype: Optional[str] = Query(default=None)):
+def get_forms(
+    ftype: Optional[str] = Query(default=None),
+    current_user: dict = Depends(require_permission(Permissions.FORM_VIEW)),
+):
     if ftype:
         return FormService.get_forms_by_ftype(ftype)
     return FormService.get_all_forms()
 
 
 @router.get("/{form_id}")
-def get_form(form_id: int):
+def get_form(form_id: int, current_user: dict = Depends(require_permission(Permissions.FORM_VIEW))):
     form = FormService.get_form(form_id)
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -33,7 +37,7 @@ def get_form(form_id: int):
 
 
 @router.post("/")
-def add_forms(form: dict, current_user: dict = Depends(get_current_user)):
+def add_forms(form: dict, current_user: dict = Depends(require_permission(Permissions.FORM_CREATE))):
     print(f"Creating form requested by '{actor_display(current_user)}'")
 
     if not form.get("fowner"):
@@ -69,7 +73,7 @@ def add_forms(form: dict, current_user: dict = Depends(get_current_user)):
 
 
 @router.put("/{form_id}")
-def update_form(form_id: int, form: dict, current_user: dict = Depends(get_current_user)):
+def update_form(form_id: int, form: dict, current_user: dict = Depends(require_permission(Permissions.FORM_EDIT))):
     existing = FormService.get_form(form_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -101,7 +105,7 @@ def update_form(form_id: int, form: dict, current_user: dict = Depends(get_curre
 def submit_form_for_review(
     form_id: int,
     payload: dict = Body(default_factory=dict),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permissions.FORM_EDIT)),
 ):
     print(f"Submitting form {form_id} for review by '{actor_display(current_user)}'")
 
@@ -128,7 +132,7 @@ def submit_form_for_review(
 
 
 @router.post("/{form_id}/revise")
-def revise_form(form_id: int, current_user: dict = Depends(get_current_user)):
+def revise_form(form_id: int, current_user: dict = Depends(require_permission(Permissions.FORM_EDIT))):
     print(f"Revising form {form_id} requested by '{actor_display(current_user)}'")
 
     try:
@@ -142,7 +146,7 @@ def revise_form(form_id: int, current_user: dict = Depends(get_current_user)):
 
 
 @router.delete("/{form_id}")
-def delete_form(form_id: int, current_user: dict = Depends(get_current_user)):
+def delete_form(form_id: int, current_user: dict = Depends(require_permission(Permissions.FORM_DELETE))):
     existing = FormService.get_form(form_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Form not found")
