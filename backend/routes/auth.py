@@ -3,14 +3,15 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from keycloak import KeycloakOpenID
 from jose import jwt
 
+from config import KEYCLOAK_CLIENT_ID, KEYCLOAK_REALM, KEYCLOAK_URL
 from constants.role_permissions import permissions_for_user_role, resolve_primary_role
 
 security = HTTPBearer()
 
 keycloak_openid = KeycloakOpenID(
-    server_url="http://localhost:8080/",
-    client_id="ams-react",
-    realm_name="amsrealm"
+    server_url=f"{KEYCLOAK_URL}/",
+    client_id=KEYCLOAK_CLIENT_ID,
+    realm_name=KEYCLOAK_REALM,
 )
 
 
@@ -40,7 +41,7 @@ def get_current_user(
             options={"verify_exp": True, "verify_aud": False}
         )
 
-        if decoded.get("azp") != "ams-react":
+        if decoded.get("azp") != KEYCLOAK_CLIENT_ID:
             raise HTTPException(status_code=401, detail="Invalid client")
 
         username = decoded.get("preferred_username") or decoded.get("sub")

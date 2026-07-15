@@ -153,9 +153,6 @@ function GlobalSearch({ onNavigate }) {
     const trimmed = query.trim().toLowerCase();
 
     if (!trimmed) {
-      setResults([]);
-      setOpen(false);
-      setLoading(false);
       return;
     }
 
@@ -215,7 +212,15 @@ function GlobalSearch({ onNavigate }) {
           className="global-search-input"
           placeholder={searchPlaceholder}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value;
+            setQuery(value);
+            if (!value.trim()) {
+              setResults([]);
+              setOpen(false);
+              setLoading(false);
+            }
+          }}
           onFocus={() => query.trim() && setOpen(true)}
           aria-label="Search TalonVault"
         />

@@ -4,6 +4,7 @@ import axios from "axios";
 import AppDataGrid from "./common/AppDataGrid";
 import { usePageInsight } from "./dashboard/PageInsightContext";
 import { filterBySearch } from "../utils/filterBySearch";
+import { API_BASE_URL } from "../config";
 
 function Asset({ searchText = "" }) {
   const [assets, setAssets] = useState([]);
@@ -36,7 +37,7 @@ function Asset({ searchText = "" }) {
 
   const fetchAsset = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/Asset");
+      const res = await axios.get(`${API_BASE_URL}/Asset`);
       setAssets(res.data);
     } catch (err) {
       console.error(err);

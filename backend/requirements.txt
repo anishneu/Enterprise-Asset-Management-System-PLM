@@ -1,5 +1,8 @@
 fastapi
 uvicorn
-python-keycloak
-python-multipart
+python-jose[cryptography]
+requests
 python-dotenv
+pymysql
+python-keycloak
+mysql-connector-python

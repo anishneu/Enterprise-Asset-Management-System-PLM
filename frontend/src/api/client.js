@@ -1,9 +1,10 @@
 import axios from "axios";
 import keycloak from "../keycloak";
 import { logoutFromApp } from "../auth/initKeycloak";
+import { API_BASE_URL } from "../config";
 
 const apiClient = axios.create({
-  baseURL: "http://127.0.0.1:8000/api",
+  baseURL: API_BASE_URL,
 });
 
 apiClient.interceptors.request.use(async (config) => {
