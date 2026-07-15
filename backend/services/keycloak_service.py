@@ -2,7 +2,13 @@ import secrets
 
 from keycloak import KeycloakAdmin
 
-from config import KEYCLOAK_CLIENT_ID, KEYCLOAK_REALM
+from config import (
+    KEYCLOAK_ADMIN,
+    KEYCLOAK_ADMIN_PASSWORD,
+    KEYCLOAK_CLIENT_ID,
+    KEYCLOAK_REALM,
+    KEYCLOAK_URL,
+)
 from constants.role_permissions import (
     ASSIGNABLE_ROLES,
     normalize_role_name,
@@ -11,10 +17,10 @@ from constants.role_permissions import (
 )
 
 keycloak_admin = KeycloakAdmin(
-    server_url="http://localhost:8080/",
-    username="admin",
-    password="admin123",
-    realm_name="amsrealm",
+    server_url=f"{KEYCLOAK_URL}/",
+    username=KEYCLOAK_ADMIN,
+    password=KEYCLOAK_ADMIN_PASSWORD,
+    realm_name=KEYCLOAK_REALM,
     user_realm_name="master",
     verify=True,
 )
