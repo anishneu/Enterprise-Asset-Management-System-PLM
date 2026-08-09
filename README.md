@@ -6,7 +6,7 @@ Talon Vault is a multi-module asset lifecycle platform built for organizations t
 
 **Stack:** FastAPI (Python) · React 19 · MySQL · Keycloak
 **Author:** Anish Kuila
-**Status:** Active development — personal/portfolio project, not deployed to production users
+
 
 ## Table of contents
 - [What it does](#what-it-does)
