@@ -2,7 +2,7 @@
 
 Enterprise-grade asset & operations management system — PLM workflows, RBAC, and full audit trails.
 
-<img src="frontend/src/media/dashboard.png" alt="Dashboard" height= "500" width="800"/>
+<img src="frontend/src/media/dashboard.png" alt="Dashboard" height= "550" width="850"/>
 
 Talon Vault is a multi-module asset lifecycle platform built for organizations that need to track parts, documents, forms, and training records through a controlled approval process. It does four things in concert: it manages parts and document revisions with a Draft → Pending Approval → Released → Obsolete lifecycle, it enforces who can see and touch what through a five-tier RBAC model backed by Keycloak, it routes multi-step approval workflows across roles, and it tracks training curricula and qualification records for PLM compliance. Every state change is written to an immutable audit log — nothing here trusts the client to self-report what happened.
 
@@ -132,7 +132,7 @@ Grouped by resource domain (see `backend/routes/` for full request/response sche
 
 ## RBAC model
 
-<img src="frontend/src/media/keycloak.png" alt="Keycloak" height= "500" width="800"/>
+<img src="frontend/src/media/keycloak.png" alt="Keycloak" height= "550" width="850"/>
 
 Five app-level permission tiers map from Keycloak realm roles:
 
